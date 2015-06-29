@@ -1,0 +1,2 @@
+#!/bin/sh
+LD_LIBRARY_PATH=./:/usr/local/lib java -classpath ./jackson-annotations-2.3.0.jar:./jackson-databind-2.3.4.jar:./jackson-core-2.3.4.jar:./dbmfs-0.0.1.jar:./fuse-j.jar:./commons-logging-1.0.4.jar:./commons-dbutils-1.6.jar:./mysql-connector-java-5.1.6.jar -Dorg.apache.commons.logging.Log=fuse.logging.FuseLog -Dfuse.logging.level=INFO -Xmx714m -Xms524m -server -XX:+UseConcMarkSweepGC -XX:+CMSParallelRemarkEnabled -XX:+UseParNewGC org.dbmfs.DbmFsMain -f -o allow_other -o big_writes -o max_read=1300000 /var/tmp/fusemnt  -dburl jdbc:mysql://localhost/test -dbuser root
