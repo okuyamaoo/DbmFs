@@ -6,7 +6,7 @@ import java.util.concurrent.locks.*;
 
 
 /**
- *
+ * Cacheクラス
  *
  * @author okuyamaoo
  * @license Apache License
