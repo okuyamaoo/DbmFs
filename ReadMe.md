@@ -8,11 +8,11 @@ DbmFsはデータベースをファイルシステムとしファイラーや
 
 > データベースに以下のMemberテーブルが存在するとします
 
-![テーブル](/Users/okuyamaoo/work/java/DBFS/img/pic1.png)
+![テーブル](./img/pic1.png)
 
 > そしてMemberテーブルには以下の3レコードが登録されています
 
-![レコード](/Users/okuyamaoo/work/java/DBFS/img/pic2.png)
+![レコード](./img/pic2.png)
 
 > DbmFsでこのデータベースをマウントすると以下のようになります
 
