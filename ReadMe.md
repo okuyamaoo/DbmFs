@@ -57,7 +57,8 @@ Version
 ###2-2.JNIをセットアップ  
 ※コンパイル前に build.conf の「JDK_HOME=/opt/jdk1.5.0」が正しいかチェック  
 ※コンパイル前に jvm_ldpath.def の「LDPATH=」が正しいかチェック  
-/opt 配下に jdk1.7.0_79 を配置している場合は以下となる。  
+/opt 配下に jdk1.7.0_79 を配置し、/opt/jdkとシンボリックリンクを  
+作成している場合は以下となる。  
 
 ### build.conf
 
