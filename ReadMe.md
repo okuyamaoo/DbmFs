@@ -15,11 +15,19 @@ DbmFsはデータベースをファイルシステムとしファイラーや
 ![レコード](./img/pic2.png)
 
 > DbmFsでこのデータベースをマウントすると以下のようになります
+![レコード](./img/pic3.png)
+※ローカルの/var/tmp/fusemnt というディレクトリにマウントした場合
 
 このようにDB上のテーブルがディレクトリとして作成され、その中に  
 レコードが格納されています。  
+レコードはJson形式にフォーマットされているのでテキストエディタで  
+開くと以下のようになります。  
+> 100001.jsonを開いた場合  
+![レコード](./img/pic4.png)
+※ファイル名は(主キー + .json) になります。
+
 リアルタイムにDBの値を反映しているので、DBのテーブルを増やせば  
-ディレクトリが増え、レコードが増えるとフォルダが増えます。  
+ディレクトリが増え、レコードが増えるとファイルが増えます。  
 Version-0.0.1ではReadOnlyのためデータ更新はできません。  
 またMySQLのみ対応しています。
 
@@ -74,8 +82,18 @@ Version
 ※distディレクトリの配下にfuse-j.jarが作成されていれば成功です。
 
 ###3.実行環境を用意
-libjavafs.so、fuse-j.jar、dbmfs-0.0.1.jarを
-上記のファイルを全て適当な1ディレクトリに配置
+####3-1.dbmfs-0.0.1.tar.gzを解凍しコンパイル  
+    $tar -zxvf dbmfs-0.0.1.tar.gz
+    $cd dbmfs-0.0.1
+    $cp ~fuse-jセットアップディレクトリ/dist/fuse-j.jar ./lib/
+    $mvn install:install-file -Dfile=./lib/fuse-j.jar -DgroupId=fuse-j -DartifactId=fuse-j -Dversion=2.4 -Dpackaging=jar -DgeneratePom=true
+    $mvn clean compile package  
+
+####3-2.必要なライブラリを全て1ディレクトリにコピー
+    $mkdir /var/tmp/dbmfs_test
+    $cd  /var/tmp/dbmfs_test
+    $cp ~fuse-jセットアップディレクトリ/jni/libjavafs.so ./
+    $cp ~dbmfs-0.0.1/target/dbmfs-0.0.1-jar-with-dependencies.jar ./
 
 ###4.マウントディレクトリを作成
     $mkdir /var/tmp/dbmfsmnt
@@ -85,11 +103,12 @@ libjavafs.so、fuse-j.jar、dbmfs-0.0.1.jarを
 ※/usr/local/lib配下にFUSEのライブラリが配置されている想定  
 ※MySQLがローカルで起動しておりtestというデータベースが存在しrootユーザにてパスワードなしでログイン出来る想定
 
-    $LD_LIBRARY_PATH=./:/usr/local/lib java -classpath ./dbmfs-0.0.1.jar:./fuse-j.jar -Dorg.apache.commons.logging.Log=fuse.logging.FuseLog -Dfuse.logging.level=INFO -Xmx714m -Xms524m -server -XX:+UseConcMarkSweepGC -XX:+CMSParallelRemarkEnabled -XX:+UseParNewGC org.dbmfs.DbmFsMain -f -o allow_other -o big_writes -o max_read=1300000 /var/tmp/dbmfsmnt -dburl jdbc:mysql://localhost/test -dbuser root  
+    cd /var/tmp/dbmfs_test
+    $LD_LIBRARY_PATH=./:/usr/local/lib java -classpath dbmfs-0.0.1-jar-with-dependencies.jar  -Dorg.apache.commons.logging.Log=fuse.logging.FuseLog -Dfuse.logging.level=INFO -Xmx714m -Xms524m -server  org.dbmfs.DbmFsMain -f -o allow_other -o big_writes -o max_read=1300000 /var/tmp/dbmfsmnt -dburl jdbc:mysql://localhost/test -dbuser root  
 
 ※接続ユーザにパスワードが設定されている場合は-dbpassを引数に付加  
 
-    LD_LIBRARY_PATH=./:/usr/local/lib java -classpath ./dbmfs-0.0.1.jar:./fuse-j.jar -Dorg.apache.commons.logging.Log=fuse.logging.FuseLog  -Dfuse.logging.level=INFO -Xmx714m -Xms524m -server -XX:+UseConcMarkSweepGC -XX:+CMSParallelRemarkEnabled -XX:+UseParNewGC org.dbmfs.DbmFsMain -f -o allow_other -o big_writes -o max_read=1300000 /var/tmp/dbmfsmnt -dburl jdbc:mysql://localhost/test -dbuser root -dbpass password  
+    $LD_LIBRARY_PATH=./:/usr/local/lib java -classpath dbmfs-0.0.1-jar-with-dependencies.jar  -Dorg.apache.commons.logging.Log=fuse.logging.FuseLog -Dfuse.logging.level=INFO -Xmx714m -Xms524m -server  org.dbmfs.DbmFsMain -f -o allow_other -o big_writes -o max_read=1300000 /var/tmp/dbmfsmnt -dburl jdbc:mysql://localhost/test -dbuser root -dbpass passwrod  
 
 　  
 
