@@ -41,10 +41,10 @@ public class CacheFolder extends LinkedHashMap {
         w.lock();
 
         try {
-						Object[] values = new Object[2];
-						values[0] = value;
-						values[1] = new Long(System.currentTimeMillis());
-						return super.put(key, values);
+            Object[] values = new Object[2];
+            values[0] = value;
+            values[1] = new Long(System.currentTimeMillis());
+            return super.put(key, values);
         } finally {
             w.unlock(); 
         }
@@ -67,9 +67,9 @@ public class CacheFolder extends LinkedHashMap {
 
             // 10秒経過していたら無効
             if ((System.currentTimeMillis() - cacheTime.longValue()) < cacheExpireTime) {
-		            return value[0];
+                return value[0];
             } else {
-		            super.remove(key);
+                super.remove(key);
                 return null;
             }
         } catch (Exception e) {
@@ -114,7 +114,7 @@ public class CacheFolder extends LinkedHashMap {
 
             // 10秒経過していたら無効
             if ((System.currentTimeMillis() - cacheTime.longValue()) < cacheExpireTime) {
-								value[1] = cacheTime + 100L; // 確認された値の有効期限を100ms延長
+                value[1] = cacheTime + 100L; // 確認された値の有効期限を100ms延長
                 return true;
             } else {
                 super.remove(key);
