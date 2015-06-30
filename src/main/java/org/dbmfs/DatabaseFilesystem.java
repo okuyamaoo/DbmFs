@@ -35,7 +35,7 @@ public class DatabaseFilesystem implements Filesystem3, XattrSupport {
     public static String password = null;
 
     private Map openFileStatus = new Hashtable();
-  
+
     private Object[] syncFileAccess = new Object[10];
 
     DatabaseClient dbmfsCore = null;

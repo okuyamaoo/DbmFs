@@ -122,7 +122,7 @@ public class DatabaseAccessor {
 
     /**
      * テーブル名と主キーの連結文字列から該当データが存在するかを判定し返す.<br>
-     * 
+     *
      * @param targetTableName テーブル名
      * @param pKeyConcatStr 主キー文字列(連結文字列)
      * @retrun データ存在有無
