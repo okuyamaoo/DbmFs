@@ -209,7 +209,58 @@ public class DatabaseFilesystem implements Filesystem3, XattrSupport {
 
     public int mknod(String path, int mode, int rdev) throws FuseException {
         log.info("mknod " + path + " " + mode + " " + rdev);
-        throw new FuseException("Read Only").initErrno(FuseException.EACCES);
+				// modeは8進数化して上3桁は作成するもののタイプを表す　http://sourceforge.net/apps/mediawiki/fuse/index.php?title=Stat
+        // 下3桁はファイルパーミッション=>755とか644とか
+        String modeStr = Integer.toOctalString(mode);
+        String pathType = "";
+        String fileBlockIdx = null;
+        if (modeStr.indexOf("100") == 0) {
+
+            // Regular File
+            pathType = "file";
+            fileBlockIdx = "-1";
+        } else if (modeStr.indexOf("40") == 0) {
+
+            // Directory
+            pathType = "dir";
+            throw new FuseException("Directory not created").initErrno(FuseException.EACCES);
+
+        } else {
+            return Errno.EINVAL;
+        }
+
+        String pathInfoStr = "";
+        pathInfoStr = pathInfoStr + pathType;
+        pathInfoStr = pathInfoStr + "\t" + "1";
+        pathInfoStr = pathInfoStr + "\t" + "0";
+        pathInfoStr = pathInfoStr + "\t" + "0";
+        pathInfoStr = pathInfoStr + "\t" + "0";
+        pathInfoStr = pathInfoStr + "\t" + (System.currentTimeMillis() / 1000L);
+        pathInfoStr = pathInfoStr + "\t" + "0";
+        pathInfoStr = pathInfoStr + "\t" + mode;
+        pathInfoStr = pathInfoStr + "\t" + rdev;
+        pathInfoStr = pathInfoStr + "\t" + System.nanoTime(); // realKeyNodeNo
+        if (fileBlockIdx != null) {
+            pathInfoStr = pathInfoStr + "\t" + fileBlockIdx;
+        }
+
+        try {
+            String checkInfomation = dbmfsCore.getInfomation(path.trim());
+
+            if (checkInfomation != null && !checkInfomation.trim().equals("")) return Errno.EEXIST;
+            /*
+            if (!client.addPathDetail(path.trim(), pathInfoStr)) {
+                return Errno.EEXIST;
+            }
+            if (!client.setDirAttribute(path.trim(), pathType)){
+                return Errno.EEXIST;
+            }*/
+        } catch (FuseException fe) {
+            throw fe;
+        } catch (Exception e) {
+            new FuseException(e);
+        }
+        return 0;
     }
 
     public int open(String path, int flags, FuseOpenSetter openSetter) throws FuseException {

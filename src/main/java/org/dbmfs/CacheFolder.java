@@ -17,8 +17,9 @@ public class CacheFolder extends LinkedHashMap {
     private final Lock r = rwl.readLock();
     private final Lock w = rwl.writeLock();
 
-    private static int maxCacheSize = 8192*100;
-    private static long cacheExpireTime = 30001L;
+    private int maxCacheSize = 8192*100;
+    private long cacheExpireTime = 30001L;
+
 
 
     /**
@@ -26,7 +27,16 @@ public class CacheFolder extends LinkedHashMap {
      *
      */
     public CacheFolder() {
-        super(maxCacheSize, 0.75f, true);
+        super(8192*100, 0.75f, true);
+    }
+
+    /**
+     * コンストラクタ.<br>
+     *
+     */
+    public CacheFolder(int cacheSize, long expireTime) {
+        super(cacheSize, 0.75f, true);
+        cacheExpireTime = expireTime;
     }
 
 
@@ -46,7 +56,7 @@ public class CacheFolder extends LinkedHashMap {
             values[1] = new Long(System.currentTimeMillis());
             return super.put(key, values);
         } finally {
-            w.unlock(); 
+            w.unlock();
         }
     }
 
@@ -59,7 +69,7 @@ public class CacheFolder extends LinkedHashMap {
     public Object get(Object key) {
         if (!super.containsKey(key)) return null;
         r.lock();
-        try { 
+        try {
             Object[] value = (Object[])super.get(key);
 
             if (value == null) return null;
@@ -75,8 +85,8 @@ public class CacheFolder extends LinkedHashMap {
         } catch (Exception e) {
             e.printStackTrace();
             return null;
-        } finally { 
-            r.unlock(); 
+        } finally {
+            r.unlock();
         }
     }
 
@@ -94,7 +104,7 @@ public class CacheFolder extends LinkedHashMap {
             Object ret = super.remove(key);
             return ret;
         } finally {
-            w.unlock(); 
+            w.unlock();
         }
     }
 
@@ -107,7 +117,7 @@ public class CacheFolder extends LinkedHashMap {
      */
     public boolean containsKey(Object key) {
         r.lock();
-        try { 
+        try {
             Object[] value = (Object[])super.get(key);
             if (value == null) return false;
             Long cacheTime = (Long)value[1];
@@ -120,8 +130,8 @@ public class CacheFolder extends LinkedHashMap {
                 super.remove(key);
                 return false;
             }
-        } finally { 
-            r.unlock(); 
+        } finally {
+            r.unlock();
         }
     }
 

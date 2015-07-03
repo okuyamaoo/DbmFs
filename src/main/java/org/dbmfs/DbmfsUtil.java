@@ -1,6 +1,7 @@
 package org.dbmfs;
 
 import java.util.*;
+import java.io  .*;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -127,6 +128,20 @@ public class DbmfsUtil {
         }
         return mapper.writeValueAsString(target);
     }
+
+
+    /**
+     * 引数のJson文字列をObject化.<br>
+     *
+     * @param Jsonフォーマット文字列
+     * @return 変換後Object
+     */
+    public static Object jsonDeserialize(String jsonString, Class clazz)  throws IOException, JsonProcessingException {
+
+        ObjectMapper mapper = new ObjectMapper();
+        return mapper.readValue(jsonString, clazz);
+    }
+
 
     /**
      * ファイルのフルパスの文字列を作成し返す.<br>
