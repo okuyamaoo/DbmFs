@@ -3,6 +3,7 @@ package org.dbmfs;
 import java.util.*;
 import java.nio.*;
 import java.io.*;
+import java.sql.*;
 
 /**
  * DBFS.<br>
@@ -11,6 +12,8 @@ import java.io.*;
  * @license Apache License
  */
 public class DatabaseClient {
+
+    private CacheFolder iNodeTmpFolder = new CacheFolder(100000, 1000L*3600*8);
 
     /**
      * コンストラクタ
@@ -170,5 +173,40 @@ public class DatabaseClient {
             }
         }
         return -1;
+    }
+
+
+    /**
+     * Key=/tbl1/111.json
+     *
+     *
+     */
+    public boolean saveData(String key, String jsonBody, Connection conn) throws Exception {
+        try {
+            // key変数をディレクトリ名だけもしくは、ディレクトリ名とファイル名の配列に分解する
+            String[] splitPath = DbmfsUtil.splitTableNameAndPKeyCharacter(key);
+
+            DatabaseAccessor da = null;
+            if (conn != null) {
+                da = new DatabaseAccessor(conn);
+            } else {
+                da = new DatabaseAccessor();
+            }
+
+            // 分解した文字列は正しい場合はsplitPath[0]:テーブル名、splitPath[1]:データファイル.jsonもしくはsplitPath[0]:テーブル名のはず
+            if (splitPath.length == 1) {
+                // テーブル名のみ
+                return false;
+            } else if (splitPath.length == 2) {
+                // テーブル名とデータファイル名
+                if (da.exsistTable(splitPath[0])) {
+                    Map<String, Object> dataObject = (Map<String, Object>)DbmfsUtil.jsonDeserialize(jsonBody, Map.class);
+                    if (da.saveData(splitPath[0], splitPath[1], dataObject)) return true;
+                }
+            }
+        } catch (Exception e) {
+            throw e;
+        }
+        return false;
     }
 }

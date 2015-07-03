@@ -32,10 +32,20 @@ public class DatabaseAccessor {
     public static CacheFolder pKeyColumnNameCacheFolder = new CacheFolder();
     public static CacheFolder dataCacheFolder = new CacheFolder();
 
+    private Connection injectConn = null;
+
     /**
      * コンストラクタ
      */
     public DatabaseAccessor() {}
+
+    /**
+     * コンストラクタ
+     */
+    public DatabaseAccessor(Connection conn) {
+        injectConn = conn;
+    }
+
 
     /**
      * テーブルのリスト情報返却.<br>
@@ -367,6 +377,157 @@ public class DatabaseAccessor {
         return resultList;
     }
 
+
+    public boolean saveData(String tableName, String pKeyConcatStr, Map<String, Object> dataObject) throws Exception {
+        try {
+            // データの存在を確認
+            if (exsistData(tableName, pKeyConcatStr)) {
+
+                // データが存在する
+                return updateData(tableName, dataObject);
+            } else {
+
+                // データが存在しない
+                return insertData(tableName, dataObject);
+            }
+        } catch (Exception e) {
+            throw e;
+        }
+    }
+
+    public boolean insertData(String tableName, Map<String, Object> dataObject) throws Exception {
+        Connection conn = null;
+
+        try {
+
+             // QueryParameter
+            List queryParams = new ArrayList();
+
+            // クエリ組み立て
+            StringBuilder queryBuf = new StringBuilder();
+            StringBuilder valuesBuf = new StringBuilder();
+
+            queryBuf.append("insert into ");
+            queryBuf.append(tableName);
+            queryBuf.append(" ( ");
+            valuesBuf.append(" values(");
+            String sep = "";
+            for(Map.Entry<String, Object> ent : dataObject.entrySet()) {
+                valuesBuf.append(sep);
+                valuesBuf.append("?");
+
+                queryBuf.append(sep);
+                queryBuf.append(ent.getKey());
+
+                queryParams.add(ent.getValue());
+                sep = ",";
+            }
+
+            queryBuf.append(" ) ");
+            valuesBuf.append(" ) ");
+
+            queryBuf.append(valuesBuf.toString());
+
+            // Connection取得
+            conn = getDbConnection();
+
+            QueryRunner qr = new QueryRunner();
+            qr.update(conn, queryBuf.toString(), queryParams.toArray(new Object[0]));
+
+        } catch(Exception e) {
+            e.printStackTrace();
+            throw e;
+        } finally {
+            try {
+                if (conn != null) conn.close();
+            }  catch(Exception e2) {}
+        }
+        return true;
+    }
+
+
+    /**
+     *
+     *
+     */
+    public boolean updateData(String tableName, Map<String, Object> dataObject) throws Exception {
+        Connection conn = null;
+
+        try {
+
+             // QueryParameter
+            List setParams = new ArrayList();
+            List whereParams = new ArrayList();
+
+            // クエリ組み立て
+            StringBuilder setBuf = new StringBuilder();
+            StringBuilder whereBuf = new StringBuilder();
+
+            setBuf.append("update  ");
+            setBuf.append(tableName);
+            setBuf.append(" set ");
+            whereBuf.append(" where ");
+
+            String setSep = "";
+            String whereSep = "";
+
+            for(Map.Entry<String, Object> ent : dataObject.entrySet()) {
+                String columnName = ent.getKey();
+                Object columnValue = ent.getValue();
+
+                setBuf.append(setSep);
+                whereBuf.append(whereSep);
+
+                // Set句を作成
+                setBuf.append(columnName);
+                setBuf.append(" = ? ");
+
+                // where句を作成
+                if (columnValue == null) {
+
+                    whereBuf.append(columnName);
+                    whereBuf.append(" is null ");
+                    setParams.add(columnValue);
+                } else {
+
+                    whereBuf.append(columnName);
+                    whereBuf.append(" = ? ");
+                    setParams.add(columnValue);
+                    whereParams.add(columnValue);
+                }
+
+                setSep = ",";
+                whereSep = " and ";
+            }
+
+            // クエリ結合
+            setBuf.append(whereBuf.toString());
+            // パラメータ結合
+            setParams.addAll(whereParams);
+
+            // Connection取得
+            conn = getDbConnection(false);
+
+            QueryRunner qr = new QueryRunner();
+            int updateCount = qr.update(conn, setBuf.toString(), setParams.toArray(new Object[0]));
+
+            if (updateCount != 1) {
+                conn.rollback();
+                return false;
+            } else {
+                conn.commit();
+                return true;
+            }
+        } catch(Exception e) {
+            e.printStackTrace();
+            throw e;
+        } finally {
+            try {
+                if (conn != null) conn.close();
+            }  catch(Exception e2) {}
+        }
+    }
+
     /**
      * 主キーを全てselect句に指定したクエリーを作成する
      *
@@ -405,12 +566,23 @@ public class DatabaseAccessor {
         return queryBuf.toString();
     }
 
-    public Connection getDbConnection() throws Exception {
 
-        Connection conn = DriverManager.getConnection(DatabaseFilesystem.databaseUrl,
-                                                        DatabaseFilesystem.user,
-                                                          DatabaseFilesystem.password);
-        conn.setAutoCommit(true);
+    public Connection getDbConnection() throws Exception {
+        return getDbConnection(true);
+    }
+
+    public Connection getDbConnection(boolean autoCommit) throws Exception {
+
+
+        Connection conn = null;
+        if (injectConn != null) {
+            conn = DriverManager.getConnection(DatabaseFilesystem.databaseUrl,
+                                                            DatabaseFilesystem.user,
+                                                                DatabaseFilesystem.password);
+            conn.setAutoCommit(autoCommit);
+        } else {
+            conn = injectConn;
+        }
         return conn;
   }
 
