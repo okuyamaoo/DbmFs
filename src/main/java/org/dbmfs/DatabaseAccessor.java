@@ -461,15 +461,20 @@ public class DatabaseAccessor {
             String sep = "";
             for(Map.Entry<String, Object> ent : dataObject.entrySet()) {
                 valuesBuf.append(sep);
-                valuesBuf.append("?");
-
                 queryBuf.append(sep);
+
                 String columnName = ent.getKey();
                 queryBuf.append(columnName);
 
                 Map columnMeta = allColumnMeta.get(columnName);
-                queryParams.add(ent.getValue());
-                queryParamTypes.add((Integer)columnMeta.get("type"));
+                if (ent.getValue() != null) {
+                    queryParams.add(ent.getValue());
+                    queryParamTypes.add((Integer)columnMeta.get("type"));
+
+                    valuesBuf.append("?");
+                } else {
+                    valuesBuf.append("null");
+                }
                 sep = ",";
             }
 
@@ -493,7 +498,7 @@ public class DatabaseAccessor {
             preparedStatement.execute();
             preparedStatement.close();
         } catch (SQLException se) {
-            
+
 
             se.printStackTrace();
             throw se;
