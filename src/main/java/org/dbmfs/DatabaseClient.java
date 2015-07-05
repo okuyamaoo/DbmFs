@@ -111,7 +111,17 @@ public class DatabaseClient {
                     String realPKeyString = DbmfsUtil.deletedFileTypeCharacter(splitPath[1]);
                     List<Map<String, Object>> dataList = da.getDataList(splitPath[0], realPKeyString);
 
-                    if (dataList == null) return null;
+                    if (dataList == null) {
+                        // 当該パスでデータがDBには存在しない
+                        // その場合は保存前のiNodeの可能瀬があるのでTmpのiNodeFolderを調べる
+                        String tmpiNodeInfomation = getTmpiNode(key);
+                        if (tmpiNodeInfomation == null) {
+                            return null;
+                        } else {
+                            // テンポラリのiNodeが存在する
+                            return DbmfsUtil.createFileInfoTemplate(0);
+                        }
+                    }
 
                     // JSON文字列化
                     String dataString = DbmfsUtil.jsonSerialize(dataList);
@@ -176,12 +186,28 @@ public class DatabaseClient {
     }
 
 
+    public boolean saveData(String key, String jsonBody, Connection conn) throws Exception {
+        System.out.println("key = " + key + " jsonBody = " + jsonBody);
+        return modifyData(key, jsonBody, 1, conn);
+    }
+
+
+   /**
+    * Key=/tbl1/111.json
+    *
+    *
+    */
+    public boolean deleteData(String key, Connection conn) throws Exception {
+        return modifyData(key, null, 2, conn);
+    }
+
+
     /**
      * Key=/tbl1/111.json
-     *
+     * modifyType = 1:insert or update , 2:delete
      *
      */
-    public boolean saveData(String key, String jsonBody, Connection conn) throws Exception {
+    private boolean modifyData(String key, String jsonBody, int modifyType, Connection conn) throws Exception {
         try {
             // key変数をディレクトリ名だけもしくは、ディレクトリ名とファイル名の配列に分解する
             String[] splitPath = DbmfsUtil.splitTableNameAndPKeyCharacter(key);
@@ -200,13 +226,56 @@ public class DatabaseClient {
             } else if (splitPath.length == 2) {
                 // テーブル名とデータファイル名
                 if (da.exsistTable(splitPath[0])) {
-                    Map<String, Object> dataObject = (Map<String, Object>)DbmfsUtil.jsonDeserialize(jsonBody, Map.class);
-                    if (da.saveData(splitPath[0], splitPath[1], dataObject)) return true;
+                    // データベースへ保存した際はテンポラリのiNodeを削除する
+                    removeTmpiNode(key);
+
+                    if (modifyType == 1) {
+                        List<Map<String, Object>> dataObject = (List<Map<String, Object>>)DbmfsUtil.jsonDeserialize(jsonBody, List.class);
+
+                        // データベースへ保存した際はテンポラリのiNodeを削除する
+                        removeTmpiNode(key);
+                        // データベースへ保存
+                        if (da.saveData(splitPath[0], splitPath[1], dataObject.get(0))) return true;
+                    } else {
+
+                        // データベースから削除
+                        if (da.deleteData(splitPath[0], splitPath[1])) return true;
+                    }
                 }
             }
         } catch (Exception e) {
+            e.printStackTrace();
             throw e;
         }
         return false;
+    }
+
+    /**
+     * mknode用に一時的にiNodeのダミーデータを作成する
+     */
+    public boolean createTmpiNode(String key, String iNodeInfomation) {
+        if (iNodeTmpFolder.containsKey(key)) return false;
+
+        iNodeTmpFolder.put(key, iNodeInfomation);
+        return true;
+    }
+
+
+    /**
+     * mknode用に一時的に作成したiNodeのダミーデータを返却する
+     */
+    public String getTmpiNode(String key) {
+
+        return (String)iNodeTmpFolder.get(key);
+    }
+
+
+
+    /**
+     * mknode用に一時的に作成したiNodeのダミーデータを削除する
+     */
+    public void removeTmpiNode(String key) {
+
+        iNodeTmpFolder.remove(key);
     }
 }

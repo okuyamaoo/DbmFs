@@ -34,9 +34,15 @@ public class DatabaseFilesystem implements Filesystem3, XattrSupport {
     public static String user = null;
     public static String password = null;
 
+    private Map<Object, Map> bufferedSaveData = new HashMap(10);
+    private static String bufferedDataBodyKey = "buf";
+    private static String bufferedDataOffset = "offset";
+
+    public volatile static String DEFAULT_JSON_ENCODING = "UTF-8";
+
     private Map openFileStatus = new Hashtable();
 
-    private Object[] syncFileAccess = new Object[10];
+    private Object[] syncFileAccess = new Object[10000];
 
     DatabaseClient dbmfsCore = null;
 
@@ -209,57 +215,55 @@ public class DatabaseFilesystem implements Filesystem3, XattrSupport {
 
     public int mknod(String path, int mode, int rdev) throws FuseException {
         log.info("mknod " + path + " " + mode + " " + rdev);
-				// modeは8進数化して上3桁は作成するもののタイプを表す　http://sourceforge.net/apps/mediawiki/fuse/index.php?title=Stat
-        // 下3桁はファイルパーミッション=>755とか644とか
+
         String modeStr = Integer.toOctalString(mode);
         String pathType = "";
         String fileBlockIdx = null;
         if (modeStr.indexOf("100") == 0) {
-
+System.out.println("000000000000");
             // Regular File
             pathType = "file";
             fileBlockIdx = "-1";
         } else if (modeStr.indexOf("40") == 0) {
-
+System.out.println("aaaaaaaaaaaa");
             // Directory
             pathType = "dir";
             throw new FuseException("Directory not created").initErrno(FuseException.EACCES);
 
         } else {
+System.out.println("bbbbbbbbbbbba");
             return Errno.EINVAL;
         }
 
-        String pathInfoStr = "";
-        pathInfoStr = pathInfoStr + pathType;
-        pathInfoStr = pathInfoStr + "\t" + "1";
-        pathInfoStr = pathInfoStr + "\t" + "0";
-        pathInfoStr = pathInfoStr + "\t" + "0";
-        pathInfoStr = pathInfoStr + "\t" + "0";
-        pathInfoStr = pathInfoStr + "\t" + (System.currentTimeMillis() / 1000L);
-        pathInfoStr = pathInfoStr + "\t" + "0";
-        pathInfoStr = pathInfoStr + "\t" + mode;
-        pathInfoStr = pathInfoStr + "\t" + rdev;
-        pathInfoStr = pathInfoStr + "\t" + System.nanoTime(); // realKeyNodeNo
+        StringBuilder infomationBuf = new StringBuilder();
+        infomationBuf.append(pathType);
+        infomationBuf.append("\t").append("1");
+        infomationBuf.append("\t").append("0");
+        infomationBuf.append("\t").append("0");
+        infomationBuf.append("\t").append("0");
+        infomationBuf.append("\t").append((System.currentTimeMillis() / 1000L));
+        infomationBuf.append("\t").append("0");
+        infomationBuf.append("\t").append(mode);
+        infomationBuf.append("\t").append(rdev);
+        infomationBuf.append("\t").append(System.nanoTime());
         if (fileBlockIdx != null) {
-            pathInfoStr = pathInfoStr + "\t" + fileBlockIdx;
+            infomationBuf.append("\t").append(fileBlockIdx);
         }
-
+System.out.println("11111111111111");
         try {
-            String checkInfomation = dbmfsCore.getInfomation(path.trim());
+            String checkInfomation = dbmfsCore.getInfomation(path);
 
             if (checkInfomation != null && !checkInfomation.trim().equals("")) return Errno.EEXIST;
-            /*
-            if (!client.addPathDetail(path.trim(), pathInfoStr)) {
-                return Errno.EEXIST;
-            }
-            if (!client.setDirAttribute(path.trim(), pathType)){
-                return Errno.EEXIST;
-            }*/
+            if (!dbmfsCore.createTmpiNode(path.trim(), infomationBuf.toString())) return Errno.EEXIST;
+System.out.println("222222222222222");
         } catch (FuseException fe) {
+          System.out.println("33333333");
             throw fe;
         } catch (Exception e) {
+System.out.println("44444444444444");
             new FuseException(e);
         }
+System.out.println("5555555555555555");
         return 0;
     }
 
@@ -310,13 +314,29 @@ public class DatabaseFilesystem implements Filesystem3, XattrSupport {
     }
 
     public int truncate(String path, long size) throws FuseException {
-       log.info("truncate " + path + " " + size);
-       throw new FuseException("Read Only").initErrno(FuseException.EACCES);
+        log.info("truncate " + path + " " + size);
+        //throw new FuseException("Read Only").initErrno(FuseException.EACCES);
+        try {
+            dbmfsCore.deleteData(path, null);
+        } catch (FuseException fe) {
+            throw fe;
+        } catch (Exception e) {
+            new FuseException(e);
+        }
+        return 0;
     }
 
-   public int unlink(String path) throws FuseException {
+    public int unlink(String path) throws FuseException {
         log.info("unlink " + path);
-        throw new FuseException("Read Only").initErrno(FuseException.EACCES);
+        //throw new FuseException("Read Only").initErrno(FuseException.EACCES);
+        try {
+            dbmfsCore.deleteData(path, null);
+        } catch (FuseException fe) {
+            throw fe;
+        } catch (Exception e) {
+            new FuseException(e);
+        }
+        return 0;
     }
 
     public int utime(String path, int atime, int mtime) throws FuseException {
@@ -324,17 +344,83 @@ public class DatabaseFilesystem implements Filesystem3, XattrSupport {
         return 0;
     }
 
-   public int readlink(String path, CharBuffer link) throws FuseException {
+    public int readlink(String path, CharBuffer link) throws FuseException {
         log.info("readlink " + path);
         link.append(path);
         return 0;
-   }
+    }
 
-
-   public int write(String path, Object fh, boolean isWritepage, ByteBuffer buf, long offset) throws FuseException {
+    public int write(String path, Object fh, boolean isWritepage, ByteBuffer buf, long offset) throws FuseException {
         log.info("write  path:" + path + " offset:" + offset + " isWritepage:" + isWritepage + " buf.limit:" + buf.limit());
-        throw new FuseException("Read Only").initErrno(FuseException.EACCES);
-   }
+        try {
+
+            if (fh == null) return Errno.EBADE;
+
+            synchronized (syncFileAccess[((path.hashCode() << 1) >>> 1) % syncFileAccess.length]) {
+
+                if (bufferedSaveData.containsKey(fh)) {
+
+                    Map bufferedData = bufferedSaveData.get(fh);
+                    ByteArrayOutputStream bufferedByteData = (ByteArrayOutputStream)bufferedData.get(bufferedDataBodyKey);
+                    long bOffset = ((Long)bufferedData.get(bufferedDataOffset)).longValue();
+
+                    if ((bOffset + bufferedByteData.size()) == offset) {
+
+                        byte[] nowWriteBytes = new byte[buf.limit()];
+                        buf.get(nowWriteBytes);
+                        bufferedByteData.write(nowWriteBytes);
+
+                        return 0;
+                    }
+                } else {
+
+                    Map bufferedData = new HashMap();
+
+                    bufferedData.put("path", path);
+                    bufferedData.put("fh", fh);
+                    bufferedData.put("isWritepage", isWritepage);
+
+                    ByteArrayOutputStream bufferedByteData = new ByteArrayOutputStream(1024*1024*2);
+                    byte[] nowWriteBytes = new byte[buf.limit()];
+                    buf.get(nowWriteBytes);
+
+                    bufferedByteData.write(nowWriteBytes);
+                    bufferedData.put(bufferedDataBodyKey, bufferedByteData);
+                    bufferedData.put(bufferedDataOffset, offset);
+
+                    this.bufferedSaveData.put(fh, bufferedData);
+                    return 0;
+                }
+            }
+        } catch (Exception e) {
+
+            throw new FuseException(e);
+        }
+        return 0;
+    }
+
+
+    public int saveData(String path, Object fh, boolean isWritepage,  byte[] writeData, long offset) throws FuseException {
+        log.info("saveData  path:" + path + " offset:" + offset + " isWritepage:" + isWritepage + " buf.limit:" + writeData.length);
+
+        if (fh == null) return Errno.EBADE;
+
+        try {
+
+            if (writeData == null || writeData.length < 1) {
+                return Errno.EBADE;
+            } else {
+                if (!dbmfsCore.saveData(path.trim(), new String(writeData, DEFAULT_JSON_ENCODING), null)) {
+                    return Errno.EBADE;
+                }
+            }
+        } catch (FuseException fe) {
+            throw fe;
+        }catch (Exception e) {
+            new FuseException(e);
+        }
+        return 0;
+    }
 
     public int read(String path, Object fh, ByteBuffer buf, long offset) throws FuseException {
         log.info("read:" + path + " offset:" + offset + " buf.limit:" + buf.limit());
@@ -351,28 +437,51 @@ public class DatabaseFilesystem implements Filesystem3, XattrSupport {
 
     public int release(String path, Object fh, int flags) throws FuseException {
         log.info("release " + path + " " + fh +  " " + flags);
-        synchronized (this.syncFileAccess[((path.hashCode() << 1) >>> 1) % 10]) {
+        synchronized (this.syncFileAccess[((path.hashCode() << 1) >>> 1) % syncFileAccess.length]) {
+
             openFileStatus.remove(path.trim());
+            saveBufferedData(fh);
         }
         return 0;
     }
 
     public int flush(String path, Object fh) throws FuseException {
         log.info("flush " + path + " " + fh);
-        synchronized (this.syncFileAccess[((path.hashCode() << 1) >>> 1) % 10]) {
+        synchronized (this.syncFileAccess[((path.hashCode() << 1) >>> 1) % syncFileAccess.length]) {
             openFileStatus.remove(path.trim());
+            saveBufferedData(fh);
         }
         return  0;
-   }
+    }
 
 
     public int fsync(String path, Object fh, boolean isDatasync) throws FuseException {
         log.info("fsync " + path + " " + fh + " " + isDatasync);
-        synchronized (this.syncFileAccess[((path.hashCode() << 1) >>> 1) % 10]) {
+        synchronized (this.syncFileAccess[((path.hashCode() << 1) >>> 1) % syncFileAccess.length]) {
             openFileStatus.remove(path.trim());
+            saveBufferedData(fh);
         }
         return 0;
-   }
+    }
+
+    private int saveBufferedData(Object fh) throws FuseException {
+        log.info("saveBufferedData " + fh);
+
+        if (bufferedSaveData.containsKey(fh)) {
+            Map bufferedData = bufferedSaveData.remove(fh);
+            if (bufferedData != null) {
+                String path = (String)bufferedData.get("path");
+                Object bufferedFh = (Object)bufferedData.get("fh");
+                boolean isWritepage = ((Boolean)bufferedData.get("isWritepage")).booleanValue();
+                ByteArrayOutputStream buf = (ByteArrayOutputStream)bufferedData.get(bufferedDataBodyKey);
+                long offset = ((Long)bufferedData.get(bufferedDataOffset)).longValue();
+
+                int realWriteRet = saveData(path, bufferedFh, isWritepage, buf.toByteArray(), offset);
+            }
+        }
+        return 0;
+    }
+
 
     public int getxattr(String path, String name, ByteBuffer dst) throws FuseException, BufferOverflowException {
        return 0;
