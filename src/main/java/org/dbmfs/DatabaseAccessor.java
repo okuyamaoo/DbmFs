@@ -9,6 +9,9 @@ import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.sql.Timestamp;
+import java.sql.PreparedStatement;
+import java.sql.ParameterMetaData;
 import org.apache.commons.dbutils.DbUtils;
 import org.apache.commons.dbutils.QueryRunner;
 import org.apache.commons.dbutils.ResultSetHandler;
@@ -30,10 +33,12 @@ public class DatabaseAccessor {
     public static CacheFolder tableListCacheFolder = new CacheFolder();
     public static CacheFolder tableExsistCacheFolder = new CacheFolder();
     public static CacheFolder pKeyColumnNameCacheFolder = new CacheFolder();
+    public static CacheFolder allColumnMetaCacheFolder = new CacheFolder();
     public static CacheFolder dataCacheFolder = new CacheFolder();
 
     private Connection injectConn = null;
 
+    private Map<String, Integer> sqlTypeMap = null;
     /**
      * コンストラクタ
      */
@@ -46,6 +51,9 @@ public class DatabaseAccessor {
         injectConn = conn;
     }
 
+    protected void initSqlTypeMap() {
+        sqlTypeMap = new HashMap();
+    }
 
     /**
      * テーブルのリスト情報返却.<br>
@@ -316,6 +324,44 @@ public class DatabaseAccessor {
     }
 
 
+
+    // テーブル名を指定して全カラムのリストをメタ情報から取得
+    private Map<String, Map<String, Object>> getAllColumnMeta(String tableName) throws Exception {
+        if (allColumnMetaCacheFolder.containsKey(tableName)) return (Map<String, Map<String, Object>>)allColumnMetaCacheFolder.get(tableName);
+
+        Connection conn = null;
+        Map<String, Map<String, Object>> allColumnMeta = null;
+        try {
+            allColumnMeta = new LinkedHashMap();
+
+            conn = getDbConnection();
+            DatabaseMetaData dbmd = conn.getMetaData();
+
+            // プライマリーキー取得
+            ResultSet rs = dbmd.getColumns(null, null, tableName, "%");
+            while (rs.next()) {
+                Map<String, Object> columMeta = new LinkedHashMap();
+                columMeta.put("name", rs.getString("COLUMN_NAME"));
+                columMeta.put("type", rs.getInt("DATA_TYPE"));
+                allColumnMeta.put((String)columMeta.get("name"), columMeta);
+            }
+            System.out.println(allColumnMeta);
+            allColumnMetaCacheFolder.put(tableName, allColumnMeta);
+            rs.close();
+            conn.close();
+            conn = null;
+        } catch(Exception e) {
+            e.printStackTrace();
+            throw e;
+        } finally {
+            try {
+                if (conn != null) conn.close();
+            }  catch(Exception e2) {}
+        }
+        return allColumnMeta;
+    }
+
+
     /**
      * 指定されたテーブルの全レコードの主キー値の連結文字列を作成する.<br>
      *
@@ -399,9 +445,10 @@ public class DatabaseAccessor {
         Connection conn = null;
 
         try {
-
+            Map<String, Map<String, Object>> allColumnMeta = getAllColumnMeta(tableName);
              // QueryParameter
             List queryParams = new ArrayList();
+            List<Integer> queryParamTypes = new ArrayList();
 
             // クエリ組み立て
             StringBuilder queryBuf = new StringBuilder();
@@ -417,22 +464,39 @@ public class DatabaseAccessor {
                 valuesBuf.append("?");
 
                 queryBuf.append(sep);
-                queryBuf.append(ent.getKey());
+                String columnName = ent.getKey();
+                queryBuf.append(columnName);
 
+                Map columnMeta = allColumnMeta.get(columnName);
                 queryParams.add(ent.getValue());
+                queryParamTypes.add((Integer)columnMeta.get("type"));
                 sep = ",";
             }
 
             queryBuf.append(" ) ");
             valuesBuf.append(" ) ");
-
             queryBuf.append(valuesBuf.toString());
 
-            // Connection取得
+            // パラメータのbind実行
             conn = getDbConnection();
+            PreparedStatement preparedStatement = conn.prepareStatement(queryBuf.toString());
 
-            QueryRunner qr = new QueryRunner();
-            qr.update(conn, queryBuf.toString(), queryParams.toArray(new Object[0]));
+            int bindIndex = 1;
+            for (Object paramObject : queryParams) {
+                if (paramObject == null) {
+                    preparedStatement.setNull(bindIndex, queryParamTypes.get(bindIndex - 1).intValue());
+                } else {
+                    preparedStatement.setObject(bindIndex, paramObject, queryParamTypes.get(bindIndex - 1).intValue());
+                }
+                bindIndex++;
+            }
+            preparedStatement.execute();
+            preparedStatement.close();
+        } catch (SQLException se) {
+            
+
+            se.printStackTrace();
+            throw se;
 
         } catch(Exception e) {
             e.printStackTrace();
@@ -447,13 +511,27 @@ public class DatabaseAccessor {
 
 
     /**
-     *
+     * DBへのUpdate処理
      *
      */
     public boolean updateData(String tableName, Map<String, Object> dataObject) throws Exception {
         Connection conn = null;
 
         try {
+            // テーブル名から主キー取得
+            List<String> pKeyNameList = getPrimaryKeyColumnNames(tableName);
+            Map<String, Object> pKeyObjectMap = new LinkedHashMap();
+
+            // 主キーのみ保存Objectから取り出し
+            for (String pKeyName : pKeyNameList) {
+                Object pKeyValue = dataObject.remove(pKeyName);
+                if (pKeyValue != null) {
+                    pKeyObjectMap.put(pKeyName, pKeyValue);
+                }
+            }
+
+            // 主キーの存在チェック
+            if (pKeyObjectMap.size() == 0) return false;
 
              // QueryParameter
             List setParams = new ArrayList();
@@ -471,18 +549,27 @@ public class DatabaseAccessor {
             String setSep = "";
             String whereSep = "";
 
+            // UpdateのSetを作成
             for(Map.Entry<String, Object> ent : dataObject.entrySet()) {
                 String columnName = ent.getKey();
                 Object columnValue = ent.getValue();
 
                 setBuf.append(setSep);
-                whereBuf.append(whereSep);
 
                 // Set句を作成
                 setBuf.append(columnName);
                 setBuf.append(" = ? ");
+                setSep = ",";
+            }
+
+            // Updateのwhereを作成
+            for(Map.Entry<String, Object> ent : pKeyObjectMap.entrySet()) {
+                String columnName = ent.getKey();
+                Object columnValue = ent.getValue();
 
                 // where句を作成
+                whereBuf.append(whereSep);
+
                 if (columnValue == null) {
 
                     whereBuf.append(columnName);
@@ -495,8 +582,6 @@ public class DatabaseAccessor {
                     setParams.add(columnValue);
                     whereParams.add(columnValue);
                 }
-
-                setSep = ",";
                 whereSep = " and ";
             }
 
@@ -516,6 +601,7 @@ public class DatabaseAccessor {
                 return false;
             } else {
                 conn.commit();
+                removeDataCache(tableName, pKeyObjectMap);
                 return true;
             }
         } catch(Exception e) {
@@ -527,6 +613,72 @@ public class DatabaseAccessor {
             }  catch(Exception e2) {}
         }
     }
+
+
+
+    /**
+     * DBへのDelete処理
+     *
+     */
+    public boolean deleteData(String tableName, String pKeyConcatStr) throws Exception {
+      boolean ret = false;
+      Connection conn = null;
+      try {
+
+          // プライマリーキー取得
+          List<String> primaryKeyColumnNames = getPrimaryKeyColumnNames(tableName);
+
+          if (primaryKeyColumnNames == null || primaryKeyColumnNames.size() == 0) return false;
+
+          // 主キー連結文字列を分解
+          String[] keyStrSplit = pKeyConcatStr.split(primaryKeySep);
+
+          if (keyStrSplit.length != primaryKeyColumnNames.size()) return false;
+
+          // クエリ組み立て
+          StringBuilder queryBuf = new StringBuilder();
+          queryBuf.append("delete from ");
+          queryBuf.append(tableName);
+          queryBuf.append(" where ");
+
+          // クエリパラメータ(主キー)作成
+          Object[] params = new Object[primaryKeyColumnNames.size()];
+
+          String whereSep = "";
+          for (int idx = 0; idx < primaryKeyColumnNames.size(); idx++) {
+              params[idx] = keyStrSplit[idx];
+              queryBuf.append(whereSep);
+              queryBuf.append(primaryKeyColumnNames.get(idx));
+              queryBuf.append(" = ? ");
+              whereSep = " and ";
+          }
+
+            // Connection取得
+            conn = getDbConnection(false);
+
+            QueryRunner qr = new QueryRunner();
+            int updateCount = qr.update(conn, queryBuf.toString(), params);
+
+            if (updateCount != 1) {
+                conn.rollback();
+                return false;
+            } else {
+                conn.commit();
+
+                // キャッシュよりデータ削除
+                removeDataCache(tableName, pKeyConcatStr);
+                return true;
+            }
+        } catch(Exception e) {
+            e.printStackTrace();
+            throw e;
+        } finally {
+            try {
+                if (conn != null) conn.close();
+            }  catch(Exception e2) {}
+        }
+    }
+
 
     /**
      * 主キーを全てselect句に指定したクエリーを作成する
@@ -566,6 +718,32 @@ public class DatabaseAccessor {
         return queryBuf.toString();
     }
 
+    public void removeDataCache(String tableName, String pKeyConcatStr) {
+        StringBuilder cacheKeyBuf = new StringBuilder(30);
+        cacheKeyBuf.append(tableName);
+        cacheKeyBuf.append(tableNameSep);
+        cacheKeyBuf.append(pKeyConcatStr);
+        dataCacheFolder.remove(cacheKeyBuf.toString());
+    }
+
+
+    public void removeDataCache(String tableName, Map<String, Object> pKeyDataMap) {
+        StringBuilder cacheKeyBuf = new StringBuilder(30);
+        cacheKeyBuf.append(tableName);
+        cacheKeyBuf.append(tableNameSep);
+        String sep = "";
+
+        // 主キー連結文字列作成
+        for(Map.Entry<String, Object> ent : pKeyDataMap.entrySet()) {
+
+            Object columnValue = ent.getValue();
+            cacheKeyBuf.append(sep);
+            cacheKeyBuf.append(columnValue);
+            sep = primaryKeySep;
+
+        }
+        dataCacheFolder.remove(cacheKeyBuf.toString());
+    }
 
     public Connection getDbConnection() throws Exception {
         return getDbConnection(true);
@@ -575,12 +753,14 @@ public class DatabaseAccessor {
 
 
         Connection conn = null;
-        if (injectConn != null) {
+
+        if (injectConn == null) {
             conn = DriverManager.getConnection(DatabaseFilesystem.databaseUrl,
                                                             DatabaseFilesystem.user,
                                                                 DatabaseFilesystem.password);
             conn.setAutoCommit(autoCommit);
         } else {
+
             conn = injectConn;
         }
         return conn;
