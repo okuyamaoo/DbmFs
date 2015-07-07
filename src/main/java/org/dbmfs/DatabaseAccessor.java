@@ -12,6 +12,11 @@ import java.sql.Statement;
 import java.sql.Timestamp;
 import java.sql.PreparedStatement;
 import java.sql.ParameterMetaData;
+import java.io.Serializable;
+import java.lang.reflect.Method;
+
+
+
 import org.apache.commons.dbutils.DbUtils;
 import org.apache.commons.dbutils.QueryRunner;
 import org.apache.commons.dbutils.ResultSetHandler;
@@ -265,9 +270,11 @@ public class DatabaseAccessor {
                 whereSep = " and ";
             }
 
+
             conn = getDbConnection();
             ResultSetHandler<?> resultSetHandler = new MapListHandler();
             QueryRunner qr = new QueryRunner();
+
 
             // クエリ実行
             queryResult = (List<Map<String, Object>>)qr.query(conn, queryBuf.toString(), resultSetHandler, params);
@@ -326,8 +333,8 @@ public class DatabaseAccessor {
 
 
     // テーブル名を指定して全カラムのリストをメタ情報から取得
-    private Map<String, Map<String, Object>> getAllColumnMeta(String tableName) throws Exception {
-        if (allColumnMetaCacheFolder.containsKey(tableName)) return (Map<String, Map<String, Object>>)allColumnMetaCacheFolder.get(tableName);
+    public Map<String, Map<String, Object>> getAllColumnMeta(String tableName) throws Exception {
+//        if (allColumnMetaCacheFolder.containsKey(tableName)) return (Map<String, Map<String, Object>>)allColumnMetaCacheFolder.get(tableName);
 
         Connection conn = null;
         Map<String, Map<String, Object>> allColumnMeta = null;
@@ -337,15 +344,18 @@ public class DatabaseAccessor {
             conn = getDbConnection();
             DatabaseMetaData dbmd = conn.getMetaData();
 
-            // プライマリーキー取得
+            // 全カラム取得
             ResultSet rs = dbmd.getColumns(null, null, tableName, "%");
             while (rs.next()) {
                 Map<String, Object> columMeta = new LinkedHashMap();
                 columMeta.put("name", rs.getString("COLUMN_NAME"));
                 columMeta.put("type", rs.getInt("DATA_TYPE"));
+                columMeta.put("type_name", rs.getString("TYPE_NAME"));
+                columMeta.put("javaTypeName", getJavaTypeName(rs.getString("TYPE_NAME")));
                 allColumnMeta.put((String)columMeta.get("name"), columMeta);
+
             }
-            System.out.println(allColumnMeta);
+
             allColumnMetaCacheFolder.put(tableName, allColumnMeta);
             rs.close();
             conn.close();
@@ -482,21 +492,12 @@ public class DatabaseAccessor {
             valuesBuf.append(" ) ");
             queryBuf.append(valuesBuf.toString());
 
-            // パラメータのbind実行
+            // Connection取得
             conn = getDbConnection();
-            PreparedStatement preparedStatement = conn.prepareStatement(queryBuf.toString());
 
-            int bindIndex = 1;
-            for (Object paramObject : queryParams) {
-                if (paramObject == null) {
-                    preparedStatement.setNull(bindIndex, queryParamTypes.get(bindIndex - 1).intValue());
-                } else {
-                    preparedStatement.setObject(bindIndex, paramObject, queryParamTypes.get(bindIndex - 1).intValue());
-                }
-                bindIndex++;
-            }
-            preparedStatement.execute();
-            preparedStatement.close();
+            QueryRunner qr = new QueryRunner();
+            int insertCount = qr.update(conn, queryBuf.toString(), queryParams.toArray(new Object[0]));
+
         } catch (SQLException se) {
 
 
@@ -769,6 +770,81 @@ public class DatabaseAccessor {
             conn = injectConn;
         }
         return conn;
-  }
+    }
+
+    // MySQL固有のDBのタイプ名とJavaのタイプ名変換
+    protected String getJavaTypeName(String dbTypeName) {
+        if (dbTypeName.equals("BIT")) {
+            return "java.lang.Boolean";
+        } else if (dbTypeName.equals("BOOL")){
+            return "java.lang.Boolean";
+        } else if (dbTypeName.equals("BOOLEAN")){
+            return "java.lang.Boolean";
+        } else if (dbTypeName.equals("TINYINT")){
+            return "java.lang.Integer";
+
+        } else if (dbTypeName.indexOf("SMALLINT") != -1){
+            return "java.lang.Integer";
+
+        } else if (dbTypeName.equals("MEDIUMINT")){
+            return "java.lang.Integer";
+
+        } else if (dbTypeName.equals("INT")){
+                return "java.lang.Integer";
+
+
+        } else if (dbTypeName.equals("INTEGER")){
+            return "java.lang.Integer";
+
+        } else if (dbTypeName.equals("BIGINT")){
+            return "java.lang.Long";
+
+        } else if (dbTypeName.equals("FLOAT")){
+            return "java.lang.Float";
+
+        } else if (dbTypeName.equals("DOUBLE")){
+            return "java.lang.Double";
+
+        } else if (dbTypeName.equals("DECIMAL")){
+            return "java.math.BigDecimal";
+
+        } else if (dbTypeName.equals("DATE")){
+            return "java.sql.Date";
+
+        } else if (dbTypeName.equals("DATETIME")){
+            return "java.sql.Timestamp";
+
+        } else if (dbTypeName.equals("TIMESTAMP")){
+            return "java.sql.Timestamp";
+
+        } else if (dbTypeName.equals("TIME")){
+            return "java.sql.Time";
+
+        } else if (dbTypeName.equals("CHAR")){
+            return "java.lang.String";
+
+        } else if (dbTypeName.equals("VARCHAR")){
+            return "java.lang.String";
+
+        } else if (dbTypeName.equals("BINARY")){
+            return "byte[]";
+
+        } else if (dbTypeName.equals("VARBINARY")){
+            return "byte[]";
+
+        } else if (dbTypeName.equals("TINYBLOB")){
+            return "byte[]";
+
+        } else if (dbTypeName.equals("BLOB")){
+            return "byte[]";
+
+        } else if (dbTypeName.equals("MEDIUMBLOB")){
+            return "byte[]";
+
+        } else if (dbTypeName.equals("LONGBLOB")){
+            return "byte[]";
+        }
+        return null;
+    }
 
 }
