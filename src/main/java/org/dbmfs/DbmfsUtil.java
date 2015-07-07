@@ -1,8 +1,9 @@
 package org.dbmfs;
 
 import java.util.*;
-import java.io  .*;
-
+import java.io.*;
+import java.lang.reflect.*;
+import java.math.BigDecimal;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.annotation.JsonIgnore;
@@ -112,11 +113,11 @@ public class DbmfsUtil {
      *
      * @return Jsonフォーマット文字列
      */
-    public static String jsonSerialize(List<Map<String, Object>> target)  throws JsonProcessingException {
+    public static String jsonSerialize(Object target)  throws JsonProcessingException {
         return jsonSerialize(target, true);
     }
 
-    public static String jsonSerialize(List<Map<String, Object>> target, boolean format)  throws JsonProcessingException {
+    public static String jsonSerialize(Object target, boolean format)  throws JsonProcessingException {
         ObjectMapper mapper = null;
 
         // フォーマット有無
@@ -136,10 +137,10 @@ public class DbmfsUtil {
      * @param Jsonフォーマット文字列
      * @return 変換後Object
      */
-    public static Object jsonDeserialize(String jsonString, Class clazz)  throws IOException, JsonProcessingException {
+    public static List<Map> jsonDeserialize(String jsonString)  throws IOException, JsonProcessingException {
 
         ObjectMapper mapper = new ObjectMapper();
-        return mapper.readValue(jsonString, clazz);
+        return mapper.readValue(jsonString, List.class);
     }
 
 
@@ -167,5 +168,108 @@ public class DbmfsUtil {
     public static String deletedFileTypeCharacter(String fileName) {
         String[] realPKeysplit = fileName.split(DbmfsUtil.fileNameLastString);
         return realPKeysplit[0];
+    }
+
+    public static Map<String, Object> convertJsonMap2TypeMap(Map<String, Object> target, Map<String, Map<String, Object>> meta) throws Exception {
+
+        Map<String, Object> returnMap = new LinkedHashMap();
+
+        for(Map.Entry<String, Object> ent : target.entrySet()) {
+
+            String key = ent.getKey();
+            Object value = ent.getValue();
+
+            Map<String, Object> columnMeta = meta.get(key);
+            String javaTypeName = (String)columnMeta.get("javaTypeName");
+            returnMap.put(key, deserializeType(value, javaTypeName));
+        }
+        return returnMap;
+    }
+
+
+    public static Object deserializeType(String value, String javaTypeName) {
+        if (javaTypeName.equals("java.lang.String")) {
+            return value;
+        }
+        return value;
+    }
+
+    public static Object deserializeType(Long value, String javaTypeName) {
+        if (javaTypeName.equals("java.lang.Long")) {
+            return value;
+        }
+
+        if (javaTypeName.equals("java.sql.Date")) {
+            return new java.sql.Date(value.longValue());
+        }
+
+
+        if (javaTypeName.equals("java.sql.Timestamp")) {
+            return new java.sql.Timestamp(value.longValue());
+        }
+
+
+        if (javaTypeName.equals("java.sql.Time")) {
+            return new java.sql.Time(value.longValue());
+        }
+
+        return value;
+    }
+
+
+    public static Object deserializeType(Integer value, String javaTypeName) {
+        if (javaTypeName.equals("java.lang.Integer")) {
+            return value;
+        }
+
+        if (javaTypeName.equals("java.lang.Boolean")) {
+            if (value.intValue() == 1) {
+                return new Boolean("true");
+            } else {
+                return new Boolean("false");
+            }
+        }
+        return value;
+    }
+
+
+    public static Object deserializeType(Double value, String javaTypeName) {
+        if (javaTypeName.equals("java.lang.Double")) {
+            return value;
+        }
+
+        if (javaTypeName.equals("java.lang.Float")) {
+            return value.floatValue();
+        }
+
+        if (javaTypeName.equals("java.math.BigDecimal")) {
+            return new BigDecimal(value.doubleValue());
+        }
+        return value;
+    }
+
+
+    public static Object deserializeType(byte[] value, String javaTypeName) {
+        return value;
+    }
+
+
+    public static Object deserializeType(Boolean value, String javaTypeName) {
+        return value;
+    }
+
+
+
+    public static Object deserializeType(Object value, String javaTypeName) {
+        if (value instanceof String) {
+            return deserializeType((String)value, javaTypeName);
+        } else if (value instanceof Long) {
+            return deserializeType((Long)value, javaTypeName);
+        } else if (value instanceof Double) {
+            return deserializeType((Double)value, javaTypeName);
+        } else if (value instanceof Boolean) {
+            return deserializeType((Boolean)value, javaTypeName);
+        }
+        return value;
     }
 }

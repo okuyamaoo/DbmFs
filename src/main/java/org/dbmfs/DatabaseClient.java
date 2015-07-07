@@ -124,7 +124,8 @@ public class DatabaseClient {
                     }
 
                     // JSON文字列化
-                    String dataString = DbmfsUtil.jsonSerialize(dataList);
+                    // 1件目のみJSON化
+                    String dataString = DbmfsUtil.jsonSerialize(dataList.get(0));
                     byte[] strBytes = dataString.getBytes();
 
                     // ファイル用のfstat用文字列を作成し返す
@@ -163,7 +164,7 @@ public class DatabaseClient {
                 if (dataList == null) return 0;
 
                 // JSON文字列化
-                dataString = DbmfsUtil.jsonSerialize(dataList);
+                dataString = DbmfsUtil.jsonSerialize(dataList.get(0));
 
                 byte[] strBytes = dataString.getBytes();
                 if (strBytes.length < offset) return 0; // データサイズを指定位置が超えている。これはファイルのサイズを無条件で1MBとしているため。
@@ -230,12 +231,15 @@ public class DatabaseClient {
                     removeTmpiNode(key);
 
                     if (modifyType == 1) {
-                        List<Map<String, Object>> dataObject = (List<Map<String, Object>>)DbmfsUtil.jsonDeserialize(jsonBody, List.class);
+                        Map<String, Map<String, Object>> meta =  da.getAllColumnMeta(splitPath[0]);
+                        List dataObjectList = DbmfsUtil.jsonDeserialize(jsonBody);
+                        Map<String, Object> dataObject = (Map<String, Object>)dataObjectList.get(0);
+                        Map<String, Object> converMapData = DbmfsUtil.convertJsonMap2TypeMap(dataObject, meta);
 
                         // データベースへ保存した際はテンポラリのiNodeを削除する
                         removeTmpiNode(key);
                         // データベースへ保存
-                        if (da.saveData(splitPath[0], splitPath[1], dataObject.get(0))) return true;
+                        if (da.saveData(splitPath[0], splitPath[1], converMapData)) return true;
                     } else {
 
                         // データベースから削除
@@ -278,4 +282,5 @@ public class DatabaseClient {
 
         iNodeTmpFolder.remove(key);
     }
+
 }
