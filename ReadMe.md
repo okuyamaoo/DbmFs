@@ -116,4 +116,4 @@ Version
 ###6.アンマウント
 
     $kill -9 実行プロセス
-    $fusermount -u /var/tmp/okufs
+    $fusermount -u /var/tmp/dbmfsmnt
