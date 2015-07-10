@@ -22,7 +22,7 @@ public class DatabaseFilesystem implements Filesystem3, XattrSupport {
 
     private static final Log log = LogFactory.getLog(DatabaseFilesystem.class);
 
-    public volatile static int blockSize = 1024*8;
+    public volatile static int blockSize = 1024*64;
 
     private FuseStatfs statfs;
 
@@ -66,7 +66,7 @@ public class DatabaseFilesystem implements Filesystem3, XattrSupport {
 
         statfs = new FuseStatfs();
         statfs.blocks = Integer.MAX_VALUE;
-        statfs.blockSize = 1024 * 14;
+        statfs.blockSize = 1024 * 64;
         statfs.blocksFree = Integer.MAX_VALUE;
         statfs.files = files + dirs;
         statfs.filesFree = Integer.MAX_VALUE;
@@ -210,7 +210,8 @@ public class DatabaseFilesystem implements Filesystem3, XattrSupport {
 
     public int mkdir(String path, int mode) throws FuseException {
         log.info("mkdir " + path + " " + mode);
-        throw new FuseException("Read Only").initErrno(FuseException.EACCES);
+        return 0;
+        //throw new FuseException("Read Only").initErrno(FuseException.EACCES);
     }
 
     public int mknod(String path, int mode, int rdev) throws FuseException {
@@ -220,18 +221,17 @@ public class DatabaseFilesystem implements Filesystem3, XattrSupport {
         String pathType = "";
         String fileBlockIdx = null;
         if (modeStr.indexOf("100") == 0) {
-System.out.println("000000000000");
+
             // Regular File
             pathType = "file";
             fileBlockIdx = "-1";
         } else if (modeStr.indexOf("40") == 0) {
-System.out.println("aaaaaaaaaaaa");
+
             // Directory
             pathType = "dir";
             throw new FuseException("Directory not created").initErrno(FuseException.EACCES);
-
         } else {
-System.out.println("bbbbbbbbbbbba");
+
             return Errno.EINVAL;
         }
 
@@ -249,21 +249,21 @@ System.out.println("bbbbbbbbbbbba");
         if (fileBlockIdx != null) {
             infomationBuf.append("\t").append(fileBlockIdx);
         }
-System.out.println("11111111111111");
+
         try {
             String checkInfomation = dbmfsCore.getInfomation(path);
 
             if (checkInfomation != null && !checkInfomation.trim().equals("")) return Errno.EEXIST;
             if (!dbmfsCore.createTmpiNode(path.trim(), infomationBuf.toString())) return Errno.EEXIST;
-System.out.println("222222222222222");
+
         } catch (FuseException fe) {
-          System.out.println("33333333");
+
             throw fe;
         } catch (Exception e) {
-System.out.println("44444444444444");
+
             new FuseException(e);
         }
-System.out.println("5555555555555555");
+
         return 0;
     }
 

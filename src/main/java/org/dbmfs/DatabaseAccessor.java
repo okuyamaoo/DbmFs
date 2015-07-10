@@ -35,6 +35,11 @@ public class DatabaseAccessor {
 
     public static String primaryKeySep = "_#_";  // 主キー連結用のセパレータ
 
+    public static String tableMetaInfoKey = "__DBMFS_TABLE_META_INFOMATION";
+    public static String tableMetaInfoColumnSep = "||";
+    public static String tableMetaInfoColumnMetaSep = ",";
+
+
     public static CacheFolder tableListCacheFolder = new CacheFolder();
     public static CacheFolder tableExsistCacheFolder = new CacheFolder();
     public static CacheFolder pKeyColumnNameCacheFolder = new CacheFolder();
@@ -281,6 +286,15 @@ public class DatabaseAccessor {
 
             if (queryResult == null || queryResult.size() < 1) return null;
 
+            // リザルトにテーブルのメタ情報を埋め込む為に取得
+            Map<String, Map<String, Object>> allColumnMeta = getAllColumnMeta(targetTableName);
+            String metaSerializeString = serializeMetaInfomation(allColumnMeta);
+
+
+            for (Map resultData : queryResult) {
+                resultData.put(tableMetaInfoKey, metaSerializeString);
+            }
+
             dataCacheFolder.put(cacheKeyBuf.toString(), queryResult);
             conn.close();
             conn = null;
@@ -403,6 +417,11 @@ public class DatabaseAccessor {
             // クエリ実行
             List<Map<String, Object>> queryResult = (List<Map<String, Object>>)qr.query(conn, query, resultSetHandler);
 
+            // リザルトにテーブルのメタ情報を埋め込む為に取得
+            Map<String, Map<String, Object>> allColumnMeta = getAllColumnMeta(tableName);
+            String metaSerializeString = serializeMetaInfomation(allColumnMeta);
+
+
             // クエリ結果から主キー値を連結した文字列を作り出す
             for (int idx = 0; idx < queryResult.size(); idx++) {
 
@@ -416,7 +435,8 @@ public class DatabaseAccessor {
                     pKeyStrSep = DatabaseAccessor.primaryKeySep;
                 }
 
-                dataCacheFolder.put(tableName + tableNameSep + queryDataStrBuf.toString(), data);
+                data.put(tableMetaInfoKey, metaSerializeString);
+                dataCacheFolder.put(tableName + tableNameSep + queryDataStrBuf.toString(), new ArrayList().add(data));
                 resultList.add(queryDataStrBuf.toString());
             }
 
@@ -469,16 +489,19 @@ public class DatabaseAccessor {
             queryBuf.append(" ( ");
             valuesBuf.append(" values(");
             String sep = "";
-            for(Map.Entry<String, Object> ent : dataObject.entrySet()) {
+            for(Map.Entry<String, Map<String, Object>> ent : allColumnMeta.entrySet()) {
                 valuesBuf.append(sep);
                 queryBuf.append(sep);
 
+
                 String columnName = ent.getKey();
+                Map columnMeta = ent.getValue();
+
                 queryBuf.append(columnName);
 
-                Map columnMeta = allColumnMeta.get(columnName);
-                if (ent.getValue() != null) {
-                    queryParams.add(ent.getValue());
+                Object columnData = dataObject.get(columnName);
+                if (columnData != null) {
+                    queryParams.add(columnData);
                     queryParamTypes.add((Integer)columnMeta.get("type"));
 
                     valuesBuf.append("?");
@@ -770,6 +793,30 @@ public class DatabaseAccessor {
             conn = injectConn;
         }
         return conn;
+    }
+
+
+    protected String serializeMetaInfomation(Map<String, Map<String, Object>> allColumnMeta) {
+        StringBuilder strBuf = new StringBuilder();
+
+        String sep = "";
+        for(Map.Entry<String, Map<String, Object>> ent : allColumnMeta.entrySet()) {
+
+            Map<String, Object> columnMeta = ent.getValue();
+
+            strBuf.append(sep);
+            strBuf.append("column_name:");
+            strBuf.append(ent.getKey());
+            strBuf.append(tableMetaInfoColumnMetaSep);
+            strBuf.append("type_name:");
+            strBuf.append((String)columnMeta.get("type_name"));
+            strBuf.append(tableMetaInfoColumnMetaSep);
+            strBuf.append("javaTypeName:");
+            strBuf.append((String)columnMeta.get("javaTypeName"));
+
+            sep = tableMetaInfoColumnSep;
+        }
+        return strBuf.toString();
     }
 
     // MySQL固有のDBのタイプ名とJavaのタイプ名変換
