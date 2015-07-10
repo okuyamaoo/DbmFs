@@ -127,6 +127,7 @@ public class DbmfsUtil {
         } else {
             mapper = new ObjectMapper();
         }
+        System.out.println(mapper.writeValueAsString(target));
         return mapper.writeValueAsString(target);
     }
 
@@ -179,9 +180,11 @@ public class DbmfsUtil {
             String key = ent.getKey();
             Object value = ent.getValue();
 
-            Map<String, Object> columnMeta = meta.get(key);
-            String javaTypeName = (String)columnMeta.get("javaTypeName");
-            returnMap.put(key, deserializeType(value, javaTypeName));
+            if (!key.equals(DatabaseAccessor.tableMetaInfoKey)) { //テーブルのメタ情報は除外
+                Map<String, Object> columnMeta = meta.get(key);
+                String javaTypeName = (String)columnMeta.get("javaTypeName");
+                returnMap.put(key, deserializeType(value, javaTypeName));
+                }
         }
         return returnMap;
     }

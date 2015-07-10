@@ -125,7 +125,7 @@ public class DatabaseClient {
 
                     // JSON文字列化
                     // 1件目のみJSON化
-                    String dataString = DbmfsUtil.jsonSerialize(dataList.get(0));
+                    String dataString = DbmfsUtil.jsonSerialize(dataList);
                     byte[] strBytes = dataString.getBytes();
 
                     // ファイル用のfstat用文字列を作成し返す
@@ -164,7 +164,7 @@ public class DatabaseClient {
                 if (dataList == null) return 0;
 
                 // JSON文字列化
-                dataString = DbmfsUtil.jsonSerialize(dataList.get(0));
+                dataString = DbmfsUtil.jsonSerialize(dataList);
 
                 byte[] strBytes = dataString.getBytes();
                 if (strBytes.length < offset) return 0; // データサイズを指定位置が超えている。これはファイルのサイズを無条件で1MBとしているため。
