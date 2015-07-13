@@ -15,7 +15,8 @@ import java.sql.ParameterMetaData;
 import java.io.Serializable;
 import java.lang.reflect.Method;
 
-
+import com.jolbox.bonecp.BoneCP;
+import com.jolbox.bonecp.BoneCPConfig;
 
 import org.apache.commons.dbutils.DbUtils;
 import org.apache.commons.dbutils.QueryRunner;
@@ -46,9 +47,13 @@ public class DatabaseAccessor {
     public static CacheFolder allColumnMetaCacheFolder = new CacheFolder();
     public static CacheFolder dataCacheFolder = new CacheFolder();
 
+    private static BoneCP connectionPool = null;
+
     private Connection injectConn = null;
 
     private Map<String, Integer> sqlTypeMap = null;
+
+
     /**
      * コンストラクタ
      */
@@ -63,6 +68,27 @@ public class DatabaseAccessor {
 
     protected void initSqlTypeMap() {
         sqlTypeMap = new HashMap();
+    }
+
+    public static void initDatabaseAccessor() throws Exception {
+        BoneCPConfig config = new BoneCPConfig();
+        config.setJdbcUrl(DatabaseFilesystem.databaseUrl);
+        config.setUsername(DatabaseFilesystem.user);
+        config.setPassword(DatabaseFilesystem.password);
+
+        config.setMinConnectionsPerPartition(3);
+        config.setMaxConnectionsPerPartition(8);
+        config.setPartitionCount(1);
+        config.setDefaultAutoCommit(true);
+        config.setDefaultReadOnly(false);
+        config.setDefaultTransactionIsolation("READ_COMMITTED");
+        connectionPool = new BoneCP(config);
+    }
+
+
+
+    public static void poolShutdown() {
+        if (connectionPool != null) connectionPool.shutdown();
     }
 
     /**
@@ -224,9 +250,30 @@ public class DatabaseAccessor {
      * @return 複数件のデータ
      */
     public List<Map<String, Object>> getDataList(String targetTableName, String pKeyConcatStr) throws Exception {
+
         List <Map<String, Object>> queryResult = null;
         Connection conn = null;
         try {
+
+            // キャッシュ確認
+
+            StringBuilder cacheKeyBuf = new StringBuilder(50);
+            cacheKeyBuf.append(targetTableName).append(tableNameSep).append(pKeyConcatStr);
+
+            Object cacheDataMap = dataCacheFolder.get(cacheKeyBuf.toString());
+            if (cacheDataMap != null) {
+                if (cacheDataMap instanceof List) {
+
+                    return (List<Map<String, Object>>)cacheDataMap;
+                } else if (cacheDataMap instanceof Map) {
+
+                    List<Map<String, Object>> cacheList =  new ArrayList();
+                    cacheList.add((Map<String, Object>)cacheDataMap);
+                    return cacheList;
+                }
+            }
+
+
             // プライマリーキー取得
             List<String> primaryKeyColumnNames = getPrimaryKeyColumnNames(targetTableName);
 
@@ -239,22 +286,6 @@ public class DatabaseAccessor {
             // 主キー連結文字列を分解した数と主キーの数が一致しない場合はデータ無しで返却
             if (primaryKeyColumnNames.size() != keyStrSplit.length) return null;
 
-            // キャッシュよりデータ取得
-            StringBuilder cacheKeyBuf = new StringBuilder(30);
-            cacheKeyBuf.append(targetTableName);
-            cacheKeyBuf.append(tableNameSep);
-            cacheKeyBuf.append(pKeyConcatStr);
-
-            Object cacheDataMap = dataCacheFolder.get(cacheKeyBuf.toString());
-            if (cacheDataMap != null) {
-                if (cacheDataMap instanceof Map) {
-                    List<Map<String, Object>> cacheList =  new ArrayList();
-                    cacheList.add((Map<String, Object>)cacheDataMap);
-                    return cacheList;
-                } else if (cacheDataMap instanceof List) {
-                    return (List<Map<String, Object>>)cacheDataMap;
-                }
-            }
 
             // クエリ組み立て
             StringBuilder queryBuf = new StringBuilder();
@@ -328,6 +359,8 @@ public class DatabaseAccessor {
             while (rs.next()) {
                 primaryKeyColumnNames.add(rs.getString("COLUMN_NAME"));
             }
+
+            Collections.sort(primaryKeyColumnNames);
 
             pKeyColumnNameCacheFolder.put(tableName, primaryKeyColumnNames);
             rs.close();
@@ -436,7 +469,10 @@ public class DatabaseAccessor {
                 }
 
                 data.put(tableMetaInfoKey, metaSerializeString);
-                dataCacheFolder.put(tableName + tableNameSep + queryDataStrBuf.toString(), new ArrayList().add(data));
+
+                List cachePutList = new ArrayList();
+                cachePutList.add(data);
+                dataCacheFolder.put(tableName + tableNameSep + queryDataStrBuf.toString(), cachePutList);
                 resultList.add(queryDataStrBuf.toString());
             }
 
@@ -784,9 +820,7 @@ public class DatabaseAccessor {
         Connection conn = null;
 
         if (injectConn == null) {
-            conn = DriverManager.getConnection(DatabaseFilesystem.databaseUrl,
-                                                            DatabaseFilesystem.user,
-                                                                DatabaseFilesystem.password);
+            conn = connectionPool.getConnection();
             conn.setAutoCommit(autoCommit);
         } else {
 

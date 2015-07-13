@@ -23,6 +23,8 @@ public class DatabaseFilesystem implements Filesystem3, XattrSupport {
     private static final Log log = LogFactory.getLog(DatabaseFilesystem.class);
 
     public volatile static int blockSize = 1024*64;
+    public volatile static boolean useRealSize = true;
+
 
     private FuseStatfs statfs;
 
@@ -43,6 +45,7 @@ public class DatabaseFilesystem implements Filesystem3, XattrSupport {
     private Map openFileStatus = new Hashtable();
 
     private Object[] syncFileAccess = new Object[10000];
+
 
     DatabaseClient dbmfsCore = null;
 
@@ -76,6 +79,7 @@ public class DatabaseFilesystem implements Filesystem3, XattrSupport {
                 this.syncFileAccess[idx] = new Object();
             }
             Class.forName(DatabaseFilesystem.driverName);
+            DatabaseAccessor.initDatabaseAccessor();
 
             dbmfsCore = new DatabaseClient();
         } catch (Exception e) {
@@ -126,7 +130,6 @@ public class DatabaseFilesystem implements Filesystem3, XattrSupport {
 // Dir  : dir    1  0  0  0  1435097353  0  493    0  23055035971442
 //        0     1 2 3 4 5           6 7     8 9                10
                 if (infomationString == null || infomationString.trim().equals("")) return Errno.ENOENT;
-
                 pathInfo = DbmfsUtil.deserializeInfomationString(infomationString);
                 if (pathInfo[0].equals("file")) {
                     setInfo[1] = new Integer(FuseFtypeConstants.TYPE_FILE | new Integer(pathInfo[7]).intValue()).toString();
@@ -410,6 +413,7 @@ public class DatabaseFilesystem implements Filesystem3, XattrSupport {
             if (writeData == null || writeData.length < 1) {
                 return Errno.EBADE;
             } else {
+
                 if (!dbmfsCore.saveData(path.trim(), new String(writeData, DEFAULT_JSON_ENCODING), null)) {
                     return Errno.EBADE;
                 }

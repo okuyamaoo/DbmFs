@@ -127,7 +127,7 @@ public class DbmfsUtil {
         } else {
             mapper = new ObjectMapper();
         }
-        System.out.println(mapper.writeValueAsString(target));
+
         return mapper.writeValueAsString(target);
     }
 

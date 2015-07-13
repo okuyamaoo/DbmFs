@@ -41,6 +41,7 @@ public class DbmFsMain {
         }
 
         try {
+            Runtime.getRuntime().addShutdownHook(new ShutdownProccess());
 
             DatabaseFilesystem dbfs = new DatabaseFilesystem("com.mysql.jdbc.Driver", dbmfsParams.get("dburl"), dbmfsParams.get("dbuser"), dbmfsParams.get("dbpass"));
             FuseMount.mount(fuseParams.toArray(new String[0]), dbfs, log);
