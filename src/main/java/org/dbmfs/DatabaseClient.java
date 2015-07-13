@@ -75,6 +75,7 @@ public class DatabaseClient {
      *
      */
     public String getInfomation(String key) throws Exception {
+
         String retStr = null;
 
 //   /a       = dir    1  0  0  0  1435098875  0  493    0  24576974580222
@@ -105,10 +106,12 @@ public class DatabaseClient {
                 // テーブル名とデータファイル名
                 if (da.exsistTable(splitPath[0])) {
 
+
                     // テーブルが存在する
                     // ファイル名からデータを特定
                     // ファイル名には主キー + ".json"が付加されているので取り外す
                     String realPKeyString = DbmfsUtil.deletedFileTypeCharacter(splitPath[1]);
+
                     List<Map<String, Object>> dataList = da.getDataList(splitPath[0], realPKeyString);
 
                     if (dataList == null) {
@@ -123,13 +126,18 @@ public class DatabaseClient {
                         }
                     }
 
-                    // JSON文字列化
-                    // 1件目のみJSON化
-                    String dataString = DbmfsUtil.jsonSerialize(dataList);
-                    byte[] strBytes = dataString.getBytes();
+                    if (DatabaseFilesystem.useRealSize) {
+                        // JSON文字列化
+                        // 1件目のみJSON化
+                        String dataString = DbmfsUtil.jsonSerialize(dataList);
+                        byte[] strBytes = dataString.getBytes();
 
-                    // ファイル用のfstat用文字列を作成し返す
-                    return DbmfsUtil.createFileInfoTemplate(strBytes.length);
+                        // ファイル用のfstat用文字列を作成し返す
+                        return DbmfsUtil.createFileInfoTemplate(strBytes.length);
+                    } else {
+                        return DbmfsUtil.createFileInfoTemplate(1024*1024);
+                    }
+
                 }
             } else {
                 // 不正な指定
@@ -188,7 +196,6 @@ public class DatabaseClient {
 
 
     public boolean saveData(String key, String jsonBody, Connection conn) throws Exception {
-        System.out.println("key = " + key + " jsonBody = " + jsonBody);
         return modifyData(key, jsonBody, 1, conn);
     }
 
