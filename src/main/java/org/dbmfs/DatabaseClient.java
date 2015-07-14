@@ -216,6 +216,12 @@ public class DatabaseClient {
      *
      */
     private boolean modifyData(String key, String jsonBody, int modifyType, Connection conn) throws Exception {
+        /*long start1 = 0L;
+        long start2 = 0L;
+        long start3 = 0L;
+        long end1 = 0L;
+        long end2 = 0L;
+        long end3 = 0L;*/
         try {
             // key変数をディレクトリ名だけもしくは、ディレクトリ名とファイル名の配列に分解する
             String[] splitPath = DbmfsUtil.splitTableNameAndPKeyCharacter(key);
@@ -226,27 +232,32 @@ public class DatabaseClient {
             } else {
                 da = new DatabaseAccessor();
             }
-
             // 分解した文字列は正しい場合はsplitPath[0]:テーブル名、splitPath[1]:データファイル.jsonもしくはsplitPath[0]:テーブル名のはず
             if (splitPath.length == 1) {
                 // テーブル名のみ
                 return false;
             } else if (splitPath.length == 2) {
                 // テーブル名とデータファイル名
+
+
                 if (da.exsistTable(splitPath[0])) {
+
                     // データベースへ保存した際はテンポラリのiNodeを削除する
                     removeTmpiNode(key);
 
                     if (modifyType == 1) {
                         Map<String, Map<String, Object>> meta =  da.getAllColumnMeta(splitPath[0]);
-                        List dataObjectList = DbmfsUtil.jsonDeserialize(jsonBody);
-                        Map<String, Object> dataObject = (Map<String, Object>)dataObjectList.get(0);
+                        Map<String, Object> dataObject = DbmfsUtil.jsonDeserializeSingleObject(jsonBody);
+
                         Map<String, Object> converMapData = DbmfsUtil.convertJsonMap2TypeMap(dataObject, meta);
+
 
                         // データベースへ保存した際はテンポラリのiNodeを削除する
                         removeTmpiNode(key);
                         // データベースへ保存
-                        if (da.saveData(splitPath[0], splitPath[1], converMapData)) return true;
+                        if (da.saveData(splitPath[0], splitPath[1], converMapData))  {
+                            return true;
+                        }
                     } else {
 
                         // データベースから削除
@@ -257,6 +268,7 @@ public class DatabaseClient {
         } catch (Exception e) {
             e.printStackTrace();
             throw e;
+        } finally {
         }
         return false;
     }

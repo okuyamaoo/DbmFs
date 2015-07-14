@@ -139,11 +139,28 @@ public class DbmfsUtil {
      * @return 変換後Object
      */
     public static List<Map> jsonDeserialize(String jsonString)  throws IOException, JsonProcessingException {
-
         ObjectMapper mapper = new ObjectMapper();
         return mapper.readValue(jsonString, List.class);
     }
 
+
+
+
+    /**
+     * 引数のJson文字列をObject化.<br>
+     *
+     * @param Jsonフォーマット文字列
+     * @return 変換後Object
+     */
+    public static Map<String, Object> jsonDeserializeSingleObject(String jsonString)  throws IOException, JsonProcessingException {
+        String[] strSplit = jsonString.split("\"__DBMFS_TABLE_META_INFOMATION\"");
+
+        String convertDataString = strSplit[0].trim();
+        convertDataString = convertDataString.substring(1, (convertDataString.length() - 1));
+
+        ObjectMapper mapper = new ObjectMapper();
+        return mapper.readValue(convertDataString + "}", Map.class);
+    }
 
     /**
      * ファイルのフルパスの文字列を作成し返す.<br>

@@ -381,7 +381,7 @@ public class DatabaseAccessor {
 
     // テーブル名を指定して全カラムのリストをメタ情報から取得
     public Map<String, Map<String, Object>> getAllColumnMeta(String tableName) throws Exception {
-//        if (allColumnMetaCacheFolder.containsKey(tableName)) return (Map<String, Map<String, Object>>)allColumnMetaCacheFolder.get(tableName);
+        if (allColumnMetaCacheFolder.containsKey(tableName)) return (Map<String, Map<String, Object>>)allColumnMetaCacheFolder.get(tableName);
 
         Connection conn = null;
         Map<String, Map<String, Object>> allColumnMeta = null;
