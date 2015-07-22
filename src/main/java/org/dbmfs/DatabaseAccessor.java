@@ -37,7 +37,8 @@ public class DatabaseAccessor {
     public static String primaryKeySep = "_#_";  // 主キー連結用のセパレータ
 
     public static String tableMetaInfoKey = "__DBMFS_TABLE_META_INFOMATION";
-    public static String tableMetaInfoColumnSep = "||";
+    public static String tableMetaInfoPKeyKey = "__PKEY_MAP";
+    public static String tableMetaInfoColumnSep = "____";
     public static String tableMetaInfoColumnMetaSep = ",";
 
 
@@ -90,6 +91,36 @@ public class DatabaseAccessor {
     public static void poolShutdown() {
         if (connectionPool != null) connectionPool.shutdown();
     }
+
+
+    /**
+     * テーブルのリスト情報返却.<br>
+     *
+     * @return テーブル名のリスト
+     */
+    public void createTable(DDLFolder folder, String tableName)  throws Exception {
+
+        Connection conn = null;
+        try {
+            conn = getDbConnection();
+            QueryRunner qr = new QueryRunner();
+
+            int createRet = qr.update(conn, folder.getCreateSQL(tableName));
+        } catch (SQLException se) {
+
+            se.printStackTrace();
+            throw se;
+        } catch(Exception e) {
+            e.printStackTrace();
+            throw e;
+        } finally {
+            try {
+                if (conn != null) conn.close();
+            }  catch(Exception e2) {}
+        }
+    }
+
+
 
     /**
      * テーブルのリスト情報返却.<br>
@@ -318,7 +349,7 @@ public class DatabaseAccessor {
             if (queryResult == null || queryResult.size() < 1) return null;
 
             // リザルトにテーブルのメタ情報を埋め込む為に取得
-            Map<String, Map<String, Object>> allColumnMeta = getAllColumnMeta(targetTableName);
+            Map<String, Map<String, Object>> allColumnMeta = getAllColumnMeta(targetTableName, true);
             String metaSerializeString = serializeMetaInfomation(allColumnMeta);
 
 
@@ -378,14 +409,34 @@ public class DatabaseAccessor {
     }
 
 
+    public Map<String, Map<String, Object>> getAllColumnMeta(String tableName, boolean includePKeyMeta) throws Exception {
+        Map<String, Map<String, Object>> columnMeta = getAllColumnMeta(tableName);
+        if (!includePKeyMeta) {
+            if (columnMeta != null) {
+                Map<String, Map<String, Object>> convertMap = new LinkedHashMap();
 
-    // テーブル名を指定して全カラムのリストをメタ情報から取得
-    public Map<String, Map<String, Object>> getAllColumnMeta(String tableName) throws Exception {
-        if (allColumnMetaCacheFolder.containsKey(tableName)) return (Map<String, Map<String, Object>>)allColumnMetaCacheFolder.get(tableName);
+                for (Map.Entry<String, Map<String, Object>> entry : columnMeta.entrySet()) {
+
+                    String key = entry.getKey();
+                    Map<String, Object> val = entry.getValue();
+                    if (!key.equals(DatabaseAccessor.tableMetaInfoPKeyKey)) {
+                        convertMap.put(key, val);
+                    }
+                }
+                return convertMap;
+            }
+        }
+        return columnMeta;
+    }
+
+
+    private  Map<String, Map<String, Object>> getAllColumnMeta(String tableName) throws Exception {
 
         Connection conn = null;
         Map<String, Map<String, Object>> allColumnMeta = null;
         try {
+            if (allColumnMetaCacheFolder.containsKey(tableName)) return (Map<String, Map<String, Object>>)allColumnMetaCacheFolder.get(tableName);
+
             allColumnMeta = new LinkedHashMap();
 
             conn = getDbConnection();
@@ -398,12 +449,29 @@ public class DatabaseAccessor {
                 columMeta.put("name", rs.getString("COLUMN_NAME"));
                 columMeta.put("type", rs.getInt("DATA_TYPE"));
                 columMeta.put("type_name", rs.getString("TYPE_NAME"));
+                columMeta.put("column_size", rs.getInt("COLUMN_SIZE"));
+                columMeta.put("null_type", rs.getString("IS_NULLABLE"));
+                columMeta.put("seq_type", rs.getString("IS_AUTOINCREMENT"));
                 columMeta.put("javaTypeName", getJavaTypeName(rs.getString("TYPE_NAME")));
                 allColumnMeta.put((String)columMeta.get("name"), columMeta);
 
             }
 
+
+            Map<String, Object> pKeyNameMap = new LinkedHashMap();
+            try {
+                List<String> pkeyList = getPrimaryKeyColumnNames(tableName);
+
+                int no = 1;
+                for (String pkeyName : pkeyList) {
+                    pKeyNameMap.put(pkeyName, no);
+                    no++;
+                }
+            } catch (SQLException se) {
+            }
+            allColumnMeta.put(DatabaseAccessor.tableMetaInfoPKeyKey, pKeyNameMap);
             allColumnMetaCacheFolder.put(tableName, allColumnMeta);
+
             rs.close();
             conn.close();
             conn = null;
@@ -451,7 +519,7 @@ public class DatabaseAccessor {
             List<Map<String, Object>> queryResult = (List<Map<String, Object>>)qr.query(conn, query, resultSetHandler);
 
             // リザルトにテーブルのメタ情報を埋め込む為に取得
-            Map<String, Map<String, Object>> allColumnMeta = getAllColumnMeta(tableName);
+            Map<String, Map<String, Object>> allColumnMeta = getAllColumnMeta(tableName, true);
             String metaSerializeString = serializeMetaInfomation(allColumnMeta);
 
 
@@ -511,7 +579,8 @@ public class DatabaseAccessor {
         Connection conn = null;
 
         try {
-            Map<String, Map<String, Object>> allColumnMeta = getAllColumnMeta(tableName);
+            Map<String, Map<String, Object>> allColumnMeta = getAllColumnMeta(tableName, false);
+
              // QueryParameter
             List queryParams = new ArrayList();
             List<Integer> queryParamTypes = new ArrayList();
@@ -555,14 +624,12 @@ public class DatabaseAccessor {
             conn = getDbConnection();
 
             QueryRunner qr = new QueryRunner();
+
             int insertCount = qr.update(conn, queryBuf.toString(), queryParams.toArray(new Object[0]));
-
         } catch (SQLException se) {
-
 
             se.printStackTrace();
             throw se;
-
         } catch(Exception e) {
             e.printStackTrace();
             throw e;
@@ -696,6 +763,8 @@ public class DatabaseAccessor {
           if (primaryKeyColumnNames == null || primaryKeyColumnNames.size() == 0) return false;
 
           // 主キー連結文字列を分解
+          pKeyConcatStr = pKeyConcatStr.replace(".json", "");
+
           String[] keyStrSplit = pKeyConcatStr.split(primaryKeySep);
 
           if (keyStrSplit.length != primaryKeyColumnNames.size()) return false;
@@ -720,7 +789,6 @@ public class DatabaseAccessor {
 
             // Connection取得
             conn = getDbConnection(false);
-
             QueryRunner qr = new QueryRunner();
             int updateCount = qr.update(conn, queryBuf.toString(), params);
 
@@ -784,10 +852,12 @@ public class DatabaseAccessor {
     }
 
     public void removeDataCache(String tableName, String pKeyConcatStr) {
+
         StringBuilder cacheKeyBuf = new StringBuilder(30);
         cacheKeyBuf.append(tableName);
         cacheKeyBuf.append(tableNameSep);
         cacheKeyBuf.append(pKeyConcatStr);
+
         dataCacheFolder.remove(cacheKeyBuf.toString());
     }
 
@@ -836,22 +906,50 @@ public class DatabaseAccessor {
         String sep = "";
         for(Map.Entry<String, Map<String, Object>> ent : allColumnMeta.entrySet()) {
 
-            Map<String, Object> columnMeta = ent.getValue();
+            String mapKey = ent.getKey();
+            if (!mapKey.equals(DatabaseAccessor.tableMetaInfoPKeyKey)) {
+                Map<String, Object> columnMeta = ent.getValue();
 
-            strBuf.append(sep);
-            strBuf.append("column_name:");
-            strBuf.append(ent.getKey());
-            strBuf.append(tableMetaInfoColumnMetaSep);
-            strBuf.append("type_name:");
-            strBuf.append((String)columnMeta.get("type_name"));
-            strBuf.append(tableMetaInfoColumnMetaSep);
-            strBuf.append("javaTypeName:");
-            strBuf.append((String)columnMeta.get("javaTypeName"));
+                strBuf.append(sep);
+                strBuf.append("column_name:");
+                strBuf.append(mapKey);
+                strBuf.append(tableMetaInfoColumnMetaSep);
+                strBuf.append("type_name:");
+                strBuf.append((String)columnMeta.get("type_name"));
+                strBuf.append(tableMetaInfoColumnMetaSep);
+                strBuf.append("column_size:");
+                strBuf.append((Integer)columnMeta.get("column_size"));
+                strBuf.append(tableMetaInfoColumnMetaSep);
+                strBuf.append("null_type:");
+                strBuf.append((String)columnMeta.get("null_type"));
+                strBuf.append(tableMetaInfoColumnMetaSep);
+                strBuf.append("seq_type:");
+                strBuf.append((String)columnMeta.get("seq_type"));
+                strBuf.append(tableMetaInfoColumnMetaSep);
+                strBuf.append("javaTypeName:");
+                strBuf.append((String)columnMeta.get("javaTypeName"));
 
-            sep = tableMetaInfoColumnSep;
+                sep = tableMetaInfoColumnSep;
+            }
         }
+
+        // PKey名を連結した文字列を作成
+        StringBuilder pKeyNames = new StringBuilder();
+        String pKeyNamesSep = "";
+        Map<String, Object> pkeyMap = (Map<String, Object>)allColumnMeta.get(DatabaseAccessor.tableMetaInfoPKeyKey);
+        for (String pkeyName : pkeyMap.keySet()) {
+            pKeyNames.append(pKeyNamesSep);
+            pKeyNames.append(pkeyName);
+            pKeyNamesSep = ",";
+        }
+
+        strBuf.append(sep);
+        strBuf.append("pkey_columns_name:");
+        strBuf.append(pKeyNames.toString());
+
         return strBuf.toString();
     }
+
 
     // MySQL固有のDBのタイプ名とJavaのタイプ名変換
     protected String getJavaTypeName(String dbTypeName) {
