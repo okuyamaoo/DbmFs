@@ -113,10 +113,9 @@ public class DatabaseClient {
                     String realPKeyString = DbmfsUtil.deletedFileTypeCharacter(splitPath[1]);
 
                     List<Map<String, Object>> dataList = da.getDataList(splitPath[0], realPKeyString);
-
                     if (dataList == null) {
                         // 当該パスでデータがDBには存在しない
-                        // その場合は保存前のiNodeの可能瀬があるのでTmpのiNodeFolderを調べる
+                        // その場合は保存前のiNodeの可能性があるのでTmpのiNodeFolderを調べる
                         String tmpiNodeInfomation = getTmpiNode(key);
                         if (tmpiNodeInfomation == null) {
                             return null;
@@ -138,6 +137,16 @@ public class DatabaseClient {
                         return DbmfsUtil.createFileInfoTemplate(1024*1024);
                     }
 
+                } else {
+                    // テーブルは存在していない場合ファイルコピーによりテーブルイメージごとコピーしている可能性があるので、
+                    // TmpのiNodeがあるか確認
+                    String tmpiNodeInfomation = getTmpiNode(key);
+                    if (tmpiNodeInfomation == null) {
+                        return null;
+                    } else {
+                        // テンポラリのiNodeが存在する
+                        return DbmfsUtil.createFileInfoTemplate(0);
+                    }
                 }
             } else {
                 // 不正な指定
@@ -240,29 +249,42 @@ public class DatabaseClient {
                 // テーブル名とデータファイル名
 
 
-                if (da.exsistTable(splitPath[0])) {
+                // データベースへ保存した際はテンポラリのiNodeを削除する
+                removeTmpiNode(key);
+
+                if (modifyType == 1) {
+
+
+
+
+                    if (!da.exsistTable(splitPath[0])) {
+
+                        System.out.println("Not found. Table name = [" + splitPath[0] + "]");
+
+                        // テーブルをデータファイルより作成
+                        DDLFolder ddlFolder = DbmfsUtil.jsonDeserializeDDLObject(jsonBody);
+
+                        // TODO:ここでcreate文流す
+                        da.createTable(ddlFolder, splitPath[0]);
+                    }
+
+
+                    Map<String, Map<String, Object>> meta =  da.getAllColumnMeta(splitPath[0], true);
+                    Map<String, Object> dataObject = DbmfsUtil.jsonDeserializeSingleObject(jsonBody);
+
+                    Map<String, Object> converMapData = DbmfsUtil.convertJsonMap2TypeMap(dataObject, meta);
+
 
                     // データベースへ保存した際はテンポラリのiNodeを削除する
                     removeTmpiNode(key);
-
-                    if (modifyType == 1) {
-                        Map<String, Map<String, Object>> meta =  da.getAllColumnMeta(splitPath[0]);
-                        Map<String, Object> dataObject = DbmfsUtil.jsonDeserializeSingleObject(jsonBody);
-
-                        Map<String, Object> converMapData = DbmfsUtil.convertJsonMap2TypeMap(dataObject, meta);
-
-
-                        // データベースへ保存した際はテンポラリのiNodeを削除する
-                        removeTmpiNode(key);
-                        // データベースへ保存
-                        if (da.saveData(splitPath[0], splitPath[1], converMapData))  {
-                            return true;
-                        }
-                    } else {
-
-                        // データベースから削除
-                        if (da.deleteData(splitPath[0], splitPath[1])) return true;
+                    // データベースへ保存
+                    if (da.saveData(splitPath[0], splitPath[1], converMapData))  {
+                        return true;
                     }
+                } else {
+
+                    // データベースから削除
+                    if (da.deleteData(splitPath[0], splitPath[1])) return true;
                 }
             }
         } catch (Exception e) {

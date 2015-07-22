@@ -197,15 +197,22 @@ public class DbmfsUtil {
             String key = ent.getKey();
             Object value = ent.getValue();
 
-            if (!key.equals(DatabaseAccessor.tableMetaInfoKey)) { //テーブルのメタ情報は除外
+            if (!key.equals(DatabaseAccessor.tableMetaInfoKey) && !key.equals(DatabaseAccessor.tableMetaInfoPKeyKey)) { //テーブルのメタ情報と主キーメタ情報は除外
                 Map<String, Object> columnMeta = meta.get(key);
                 String javaTypeName = (String)columnMeta.get("javaTypeName");
                 returnMap.put(key, deserializeType(value, javaTypeName));
-                }
+            }
         }
         return returnMap;
     }
 
+    public static DDLFolder jsonDeserializeDDLObject(String jsonBody) throws IOException {
+        
+        ObjectMapper mapper = new ObjectMapper();
+        List dataMapList =  mapper.readValue(jsonBody, List.class);
+
+        return new DDLFolder((String)((Map)dataMapList.get(0)).get("__DBMFS_TABLE_META_INFOMATION"));
+    }
 
     public static Object deserializeType(String value, String javaTypeName) {
         if (javaTypeName.equals("java.lang.String")) {

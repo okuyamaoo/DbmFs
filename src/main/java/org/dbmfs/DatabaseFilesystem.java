@@ -129,12 +129,30 @@ public class DatabaseFilesystem implements Filesystem3, XattrSupport {
 // File : file  1  0  0  0  1435097370  0  33188  0  23071466454130  -1
 // Dir  : dir    1  0  0  0  1435097353  0  493    0  23055035971442
 //        0     1 2 3 4 5           6 7     8 9                10
-                if (infomationString == null || infomationString.trim().equals("")) return Errno.ENOENT;
-                pathInfo = DbmfsUtil.deserializeInfomationString(infomationString);
-                if (pathInfo[0].equals("file")) {
-                    setInfo[1] = new Integer(FuseFtypeConstants.TYPE_FILE | new Integer(pathInfo[7]).intValue()).toString();
-                } else if (pathInfo[0].equals("dir")) {
-                    setInfo[1] = new Integer(FuseFtypeConstants.TYPE_DIR | new Integer(pathInfo[7]).intValue()).toString();
+                if (infomationString == null || infomationString.trim().equals("")) {
+                    // データ無し
+                    if (path.trim().indexOf("json") == -1) {
+                        // ディレクトリとして結果を返す
+                        setInfo[1] = new Integer(FuseFtypeConstants.TYPE_DIR | 0777).toString();
+                        pathInfo = new String[9];
+                        pathInfo[1] = "0";
+                        pathInfo[2] = "0";
+                        pathInfo[3] = "0";
+                        pathInfo[4] = "0";
+                        pathInfo[5] = "0";
+                        pathInfo[6] = "0";
+                        pathInfo[8] = "0";
+                    } else {
+                        return Errno.ENOENT;
+                    }
+                } else {
+                    // データ有り
+                    pathInfo = DbmfsUtil.deserializeInfomationString(infomationString);
+                    if (pathInfo[0].equals("file")) {
+                        setInfo[1] = new Integer(FuseFtypeConstants.TYPE_FILE | new Integer(pathInfo[7]).intValue()).toString();
+                    } else if (pathInfo[0].equals("dir")) {
+                        setInfo[1] = new Integer(FuseFtypeConstants.TYPE_DIR | new Integer(pathInfo[7]).intValue()).toString();
+                    }
                 }
             }
             // データ構造作成
