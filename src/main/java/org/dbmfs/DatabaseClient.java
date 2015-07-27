@@ -271,20 +271,20 @@ public class DatabaseClient {
 
                     Map<String, Map<String, Object>> meta =  da.getAllColumnMeta(splitPath[0], true);
                     Map<String, Object> dataObject = DbmfsUtil.jsonDeserializeSingleObject(jsonBody);
-
+System.out.println("aaaaaaaaaaaa=" + meta);
                     Map<String, Object> converMapData = DbmfsUtil.convertJsonMap2TypeMap(dataObject, meta);
 
 
                     // データベースへ保存した際はテンポラリのiNodeを削除する
                     removeTmpiNode(key);
                     // データベースへ保存
-                    if (da.saveData(splitPath[0], splitPath[1], converMapData))  {
+                    if (da.saveData(splitPath[0], DbmfsUtil.deletedFileTypeCharacter(splitPath[1]), converMapData))  {
                         return true;
                     }
                 } else {
 
                     // データベースから削除
-                    if (da.deleteData(splitPath[0], splitPath[1])) return true;
+                    if (da.deleteData(splitPath[0], DbmfsUtil.deletedFileTypeCharacter(splitPath[1]))) return true;
                 }
             }
         } catch (Exception e) {

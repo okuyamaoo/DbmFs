@@ -219,10 +219,12 @@ public class DatabaseAccessor {
 
             // プライマリーキー取得
             List<String> primaryKeyColumnNames = getPrimaryKeyColumnNames(targetTableName);
+            Map<String, Map<String, Object>> allColumnMeta = getAllColumnMeta(targetTableName, true);
 
             if (primaryKeyColumnNames == null || primaryKeyColumnNames.size() == 0) return false;
 
             // 主キー連結文字列を分解
+            pKeyConcatStr = pKeyConcatStr.replace(".json", "");
             String[] keyStrSplit = pKeyConcatStr.split(primaryKeySep);
 
             if (keyStrSplit.length != primaryKeyColumnNames.size()) return false;
@@ -238,7 +240,9 @@ public class DatabaseAccessor {
 
             String whereSep = "";
             for (int idx = 0; idx < primaryKeyColumnNames.size(); idx++) {
-                params[idx] = keyStrSplit[idx];
+                Map<String, Object> meta = allColumnMeta.get(primaryKeyColumnNames.get(idx));
+                params[idx] = DbmfsUtil.deserializeType(keyStrSplit[idx], (String)meta.get("javaTypeName"));
+
                 queryBuf.append(whereSep);
                 queryBuf.append(primaryKeyColumnNames.get(idx));
                 queryBuf.append(" = ? ");
@@ -307,6 +311,7 @@ public class DatabaseAccessor {
 
             // プライマリーキー取得
             List<String> primaryKeyColumnNames = getPrimaryKeyColumnNames(targetTableName);
+            Map<String, Map<String, Object>> allColumnMeta = getAllColumnMeta(targetTableName, true);
 
             if (primaryKeyColumnNames == null || primaryKeyColumnNames.size() == 0) return null;
 
@@ -330,7 +335,8 @@ public class DatabaseAccessor {
             String whereSep = "";
             for (int idx = 0; idx < primaryKeyColumnNames.size(); idx++) {
 
-                params[idx] = keyStrSplit[idx];
+                Map<String, Object> meta = allColumnMeta.get(primaryKeyColumnNames.get(idx));
+                params[idx] = DbmfsUtil.deserializeType(keyStrSplit[idx], (String)meta.get("javaTypeName"));
                 queryBuf.append(whereSep);
                 queryBuf.append(primaryKeyColumnNames.get(idx));
                 queryBuf.append(" = ? ");
@@ -349,7 +355,6 @@ public class DatabaseAccessor {
             if (queryResult == null || queryResult.size() < 1) return null;
 
             // リザルトにテーブルのメタ情報を埋め込む為に取得
-            Map<String, Map<String, Object>> allColumnMeta = getAllColumnMeta(targetTableName, true);
             String metaSerializeString = serializeMetaInfomation(allColumnMeta);
 
 
@@ -763,8 +768,6 @@ public class DatabaseAccessor {
           if (primaryKeyColumnNames == null || primaryKeyColumnNames.size() == 0) return false;
 
           // 主キー連結文字列を分解
-          pKeyConcatStr = pKeyConcatStr.replace(".json", "");
-
           String[] keyStrSplit = pKeyConcatStr.split(primaryKeySep);
 
           if (keyStrSplit.length != primaryKeyColumnNames.size()) return false;
@@ -953,56 +956,56 @@ public class DatabaseAccessor {
 
     // MySQL固有のDBのタイプ名とJavaのタイプ名変換
     protected String getJavaTypeName(String dbTypeName) {
-        if (dbTypeName.equals("BIT")) {
+        if (dbTypeName.equals("BIT") || dbTypeName.toLowerCase().equals("bit")) {
             return "java.lang.Boolean";
-        } else if (dbTypeName.equals("BOOL")){
+        } else if (dbTypeName.equals("BOOL") || dbTypeName.toLowerCase().equals("bool")){
             return "java.lang.Boolean";
-        } else if (dbTypeName.equals("BOOLEAN")){
+        } else if (dbTypeName.equals("BOOLEAN") || dbTypeName.toLowerCase().equals("boolean")){
             return "java.lang.Boolean";
-        } else if (dbTypeName.equals("TINYINT")){
+        } else if (dbTypeName.equals("TINYINT") || dbTypeName.toLowerCase().equals("tinyint")){
             return "java.lang.Integer";
 
-        } else if (dbTypeName.indexOf("SMALLINT") != -1){
+        } else if (dbTypeName.indexOf("SMALLINT") != -1 || dbTypeName.toLowerCase().indexOf("smallint") != -1) {
             return "java.lang.Integer";
 
-        } else if (dbTypeName.equals("MEDIUMINT")){
+        } else if (dbTypeName.equals("MEDIUMINT") || dbTypeName.toLowerCase().equals("numeric"))  {
             return "java.lang.Integer";
 
-        } else if (dbTypeName.equals("INT")){
+        } else if (dbTypeName.equals("INT") || dbTypeName.toLowerCase().equals("int4") || dbTypeName.toLowerCase().equals("int") || dbTypeName.toLowerCase().equals("int2")){
                 return "java.lang.Integer";
 
 
-        } else if (dbTypeName.equals("INTEGER")){
+        } else if (dbTypeName.equals("INTEGER") || dbTypeName.toLowerCase().equals("integer"))  {
             return "java.lang.Integer";
 
-        } else if (dbTypeName.equals("BIGINT")){
+        } else if (dbTypeName.equals("BIGINT") || dbTypeName.toLowerCase().equals("int8")){
             return "java.lang.Long";
 
-        } else if (dbTypeName.equals("FLOAT")){
+        } else if (dbTypeName.equals("FLOAT") || dbTypeName.toLowerCase().equals("float4")){
             return "java.lang.Float";
 
-        } else if (dbTypeName.equals("DOUBLE")){
+        } else if (dbTypeName.equals("DOUBLE") || dbTypeName.toLowerCase().equals("float8")) {
             return "java.lang.Double";
 
-        } else if (dbTypeName.equals("DECIMAL")){
+        } else if (dbTypeName.equals("DECIMAL") || dbTypeName.toLowerCase().equals("decimal")) {
             return "java.math.BigDecimal";
 
-        } else if (dbTypeName.equals("DATE")){
+        } else if (dbTypeName.equals("DATE") || dbTypeName.toLowerCase().equals("date")) {
             return "java.sql.Date";
 
-        } else if (dbTypeName.equals("DATETIME")){
+        } else if (dbTypeName.equals("DATETIME") || dbTypeName.toLowerCase().equals("datetime")) {
             return "java.sql.Timestamp";
 
-        } else if (dbTypeName.equals("TIMESTAMP")){
+        } else if (dbTypeName.equals("TIMESTAMP")  || dbTypeName.toLowerCase().equals("timestamp") || dbTypeName.toLowerCase().equals("timestamptz")) {
             return "java.sql.Timestamp";
 
-        } else if (dbTypeName.equals("TIME")){
+        } else if (dbTypeName.equals("TIME") || dbTypeName.toLowerCase().equals("time") || dbTypeName.toLowerCase().equals("timetz")){
             return "java.sql.Time";
 
-        } else if (dbTypeName.equals("CHAR")){
+        } else if (dbTypeName.equals("CHAR") || dbTypeName.toLowerCase().equals("char")){
             return "java.lang.String";
 
-        } else if (dbTypeName.equals("VARCHAR")){
+        } else if (dbTypeName.equals("VARCHAR") || dbTypeName.toLowerCase().equals("varchar")){
             return "java.lang.String";
 
         } else if (dbTypeName.equals("BINARY")){
@@ -1011,7 +1014,7 @@ public class DatabaseAccessor {
         } else if (dbTypeName.equals("VARBINARY")){
             return "byte[]";
 
-        } else if (dbTypeName.equals("TINYBLOB")){
+        } else if (dbTypeName.equals("TINYBLOB") || dbTypeName.equals("bytea")){
             return "byte[]";
 
         } else if (dbTypeName.equals("BLOB")){

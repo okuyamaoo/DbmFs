@@ -21,9 +21,10 @@ public class DbmFsMain {
     /**
      * DbmFs起動.<br>
      * 起動引数は、fuseのオプション系とマウントパスそれ以外は以下<br>
-     * -dburl MySQLへの接続文字列。DB名まで含む指定。またポート番号なども変えている場合はそちらも含める 例(-dburl jdbc:mysql://localhost/test)
-     * -dbuser MySQLのデータベースへの接続ユーザ。 例(-dbuser testuser)
-     * -dbpass MySQLのデータベースへの接続ユーザのパスワード。 例(-dbpass password)
+     * -dbdriver データベース(MySQL or PostgreSQL)のJDBCドライバー文字列  省略時はMySQLとなる 例(-dbdriver org.postgresql.Driver)
+     * -dburl データベースへの接続文字列。DB名まで含む指定。またポート番号なども変えている場合はそちらも含める 例(-dburl jdbc:mysql://localhost/test)
+     * -dbuser データベースのデータベースへの接続ユーザ。 例(-dbuser testuser)
+     * -dbpass データベースのデータベースへの接続ユーザのパスワード。 例(-dbpass password)
      *
      */
     public static void main(String[] args) {
@@ -34,7 +35,7 @@ public class DbmFsMain {
         try {
 
             compileBootArgument(args, dbmfsParams, fuseParams);
-            if (dbmfsParams.size() != 3) throw new Exception();
+            if (dbmfsParams.size() != 4) throw new Exception();
         } catch (Exception e) {
             printBootMessageError();
             System.exit(1);
@@ -43,7 +44,7 @@ public class DbmFsMain {
         try {
             Runtime.getRuntime().addShutdownHook(new ShutdownProccess());
 
-            DatabaseFilesystem dbfs = new DatabaseFilesystem("com.mysql.jdbc.Driver", dbmfsParams.get("dburl"), dbmfsParams.get("dbuser"), dbmfsParams.get("dbpass"));
+            DatabaseFilesystem dbfs = new DatabaseFilesystem(dbmfsParams.get("dbdriver"), dbmfsParams.get("dburl"), dbmfsParams.get("dbuser"), dbmfsParams.get("dbpass"));
             FuseMount.mount(fuseParams.toArray(new String[0]), dbfs, log);
         } catch (Exception e) {
            e.printStackTrace();
@@ -58,8 +59,15 @@ public class DbmFsMain {
      */
     private static void compileBootArgument(String[] args, Map<String, String> dbmfsParams, List<String> fuseParams) {
         dbmfsParams.put("dbpass", ""); // パスワードは省略有り
+        dbmfsParams.put("dbdriver", "com.mysql.jdbc.Driver"); // デフォルトドライバーはMySQL
 
         for (int idx = 0; idx < args.length; idx++) {
+            if (args[idx].indexOf("-dbdriver") == 0) {
+                idx++;
+                dbmfsParams.put("dbdriver", args[idx]);
+                continue;
+            }
+
             if (args[idx].indexOf("-dburl") == 0) {
                 idx++;
                 dbmfsParams.put("dburl", args[idx]);
@@ -93,5 +101,8 @@ public class DbmFsMain {
         System.out.println("Usage : java ~~ org.dbmfs.DbmFs -dburl jdbc:mysql://localhost/test -dbuser root");
         System.out.println("                                   or                                          ");
         System.out.println("                org.dbmfs.DbmFs -dburl jdbc:mysql://localhost/test -dbuser root -dbpass *********");
+        System.out.println("                                   or                                          ");
+        System.out.println("                org.dbmfs.DbmFs -dbdriver org.postgresql.Driver -dburl jdbc:postgresql://localhost/test -dbuser postgres");
+
     }
 }
