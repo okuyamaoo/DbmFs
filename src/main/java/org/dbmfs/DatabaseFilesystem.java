@@ -49,6 +49,7 @@ public class DatabaseFilesystem implements Filesystem3, XattrSupport {
 
     DatabaseClient dbmfsCore = null;
 
+    public volatile static int DATABASE_TYPE = 1; //1=MySQL, 2=PostgreSQL
 
 
     public DatabaseFilesystem(String driverName, String databaseAddress, int databasePort, String databaseName, String user, String password) throws IOException {
@@ -78,7 +79,16 @@ public class DatabaseFilesystem implements Filesystem3, XattrSupport {
             for (int idx = 0; idx < this.syncFileAccess.length; idx++) {
                 this.syncFileAccess[idx] = new Object();
             }
+
             Class.forName(DatabaseFilesystem.driverName);
+
+            if (DatabaseFilesystem.driverName.indexOf("mysql") != -1) {
+                DatabaseFilesystem.DATABASE_TYPE = 1;
+            } else if (DatabaseFilesystem.driverName.indexOf("postgresql") != -1) {
+                DatabaseFilesystem.DATABASE_TYPE = 2;
+            }
+
+
             DatabaseAccessor.initDatabaseAccessor();
 
             dbmfsCore = new DatabaseClient();

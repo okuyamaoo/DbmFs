@@ -199,6 +199,7 @@ public class DbmfsUtil {
 
             if (!key.equals(DatabaseAccessor.tableMetaInfoKey) && !key.equals(DatabaseAccessor.tableMetaInfoPKeyKey)) { //テーブルのメタ情報と主キーメタ情報は除外
                 Map<String, Object> columnMeta = meta.get(key);
+System.out.println("BBBBBBBBBBBBB=" + key + " = " + columnMeta);
                 String javaTypeName = (String)columnMeta.get("javaTypeName");
                 returnMap.put(key, deserializeType(value, javaTypeName));
             }
@@ -207,17 +208,54 @@ public class DbmfsUtil {
     }
 
     public static DDLFolder jsonDeserializeDDLObject(String jsonBody) throws IOException {
-        
+
         ObjectMapper mapper = new ObjectMapper();
         List dataMapList =  mapper.readValue(jsonBody, List.class);
 
-        return new DDLFolder((String)((Map)dataMapList.get(0)).get("__DBMFS_TABLE_META_INFOMATION"));
+        return DDLFolder.createDDLFolder((String)((Map)dataMapList.get(0)).get("__DBMFS_TABLE_META_INFOMATION"));
     }
 
     public static Object deserializeType(String value, String javaTypeName) {
-        if (javaTypeName.equals("java.lang.String")) {
-            return value;
+        try {
+            if (javaTypeName.equals("java.lang.String")) {
+                return value;
+            } else if (javaTypeName.equals("java.lang.Long")) {
+                return new Long(value);
+            } else if (javaTypeName.equals("java.lang.Integer")) {
+                return new Integer(value);
+            } else if (javaTypeName.equals("java.lang.Double")) {
+                return new Double(value);
+            } else if (javaTypeName.equals("java.lang.Float")) {
+                return new Double(value).floatValue();
+            } else if (javaTypeName.equals("java.math.BigDecimal")) {
+                return new BigDecimal(new Double(value).doubleValue());
+            } else if (javaTypeName.equals("java.sql.Date")) {
+                return new java.sql.Date((new Long(value)).longValue());
+            } else if (javaTypeName.equals("java.sql.Timestamp")) {
+                return new java.sql.Timestamp((new Long(value)).longValue());
+            } else if (javaTypeName.equals("java.sql.Time")) {
+                return new java.sql.Time((new Long(value)).longValue());
+            } else if (javaTypeName.equals("java.lang.Boolean")) {
+                try {
+                    if ((new Integer(value)).intValue() == 1) {
+                        return new Boolean("true");
+                    } else {
+                        return new Boolean("false");
+                    }
+                } catch (Exception e) {
+                    if (value != null) {
+                        if (value.trim().toLowerCase().equals("true")) {
+                            return new Boolean("true");
+                        } else if (value.trim().toLowerCase().equals("false")) {
+                            return new Boolean("false");
+                        }
+                    }
+                }
+            }
+        } catch (Exception ee) {
+            
         }
+
         return value;
     }
 

@@ -2,12 +2,22 @@ package org.dbmfs;
 
 import java.util.*;
 
+import org.dbmfs.ddl.*;
+
 public class DDLFolder {
 
-    private String metaString = null;
-    private Map<String, Map<String, String>> columnMetaMap = new LinkedHashMap();
-    private String[] pkeyList = null;
+    protected String metaString = null;
+    protected Map<String, Map<String, String>> columnMetaMap = new LinkedHashMap();
+    protected String[] pkeyList = null;
 
+    public static DDLFolder createDDLFolder(String tableMetaString) {
+        if (DatabaseFilesystem.DATABASE_TYPE == 1) {
+            return new MySQLDDLFolder(tableMetaString);
+        } else if (DatabaseFilesystem.DATABASE_TYPE == 2) {
+            return new PostgreSQLDDLFolder(tableMetaString);
+        }
+        return new DDLFolder(tableMetaString);
+    }
 
     public DDLFolder(String tableMetaString) {
 
@@ -49,7 +59,7 @@ public class DDLFolder {
         }
     }
 
-    private String null2Blank(String target) {
+    protected String null2Blank(String target) {
         if (target.trim().equals("null")) return "";
         return target;
     }
@@ -71,8 +81,23 @@ public class DDLFolder {
             strBuf.append(tableColumnSep);
             strBuf.append(columnMeta.get("column_name"));
             strBuf.append(" ");
-            strBuf.append(columnMeta.get("type_name"));
-            if (columnMeta.get("type_name").equals("VARCHAR")) {
+
+            String typeName = columnMeta.get("type_name");
+
+            if (typeName.equals("int") || typeName.equals("int4") || typeName.equals("int2")) {
+                strBuf.append("INTEGER");
+            } else if (typeName.equals("float4") || typeName.equals("float8") || typeName.trim().toLowerCase().equals("double")) {
+                strBuf.append("DOUBLE");
+            } else if (typeName.equals("int8")) {
+                strBuf.append("BIGINT");
+            } else if (typeName.equals("BLOB")) {
+                strBuf.append("BYTEA");
+            } else {
+                strBuf.append(typeName);
+
+            }
+
+            if (columnMeta.get("type_name").equals("VARCHAR") || columnMeta.get("type_name").toLowerCase().equals("varchar")) {
                 String columnSize = columnMeta.get("column_size");
                 if (!columnSize.equals("")) {
                     strBuf.append("( ");
