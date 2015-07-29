@@ -1,3 +1,35 @@
+Version:0.0.6
+
+・ファイルコピーによるテーブルも含めたデータコピーをサポート
+マウント先しているデータベースにテーブルが存在しない場合であっても
+別のマウントディレクトリからディレクトリごとペーストすることで、
+テーブルを自動作成する機能を追加。
+詳しくはReadMe.mdの「ファイルコピー&ペーストによるテーブルの複製」部分に
+手順を記載しています。
+
+ファイルをペーストする際はディレクトリ名を含めることで
+当該ディレクトリ名のテーブルがデータベースに存在しない場合は自動的に作成されます。
+
+
+・PostgreSQLに対応
+PostgreSQLに対応しました。
+マウント時はPostgreSQLに対応したJDBCドライバーとドライバー名、接続文字列を指定してください。
+以下がマウント時のコマンドの例になります。
+
+>LD_LIBRARY_PATH=./:/usr/local/lib java -classpath ./dbmfs-0.0.6-jar-with-dependencies.jar:
+>./fuse-j.jar:./commons-logging-1.0.4.jar:./commons-dbutils-1.6.jar:./postgresql-9.4-1201.jdbc4.jar 
+>-Dorg.apache.commons.logging.Log=fuse.logging.FuseLog -Dfuse.logging.level=INFO -Xmx512m -Xms512m 
+>-server -XX:+UseConcMarkSweepGC -XX:+CMSParallelRemarkEnabled -XX:+UseParNewGC org.dbmfs.DbmFsMain 
+>-f -o allow_other -o big_writes -o max_read=1300000 /var/tmp/fusemnt -dbdriver org.postgresql.Driver 
+>-dburl jdbc:postgresql://localhost/testdb -dbuser dbmfs -dbpass 'dbmfs'
+
+
+・デーベース間の互換性
+  MySQL と PostgreSQL 間で互換性に対応しているため、MySQLをマウントしディレクトリごとコピーし
+  PostgreSQLをマウントしているディレクトリにペースとすることでデータベース移行が可能です。
+  PostgreSQLからMySQLへの移行も同様に可能です。
+  
+-------
 Version:0.0.5
 
 更新系処理にてディレクトリコピーをサポート
@@ -6,7 +38,6 @@ Version:0.0.5
 なるため、DbmFsを2つマウントしディレクトリをマウントディレクトリToマウントディレクトリと
 することでテーブルごと移行することが可能となります。
 移行先にあらかじめテーブルが存在しなくても自動的にテーブルを作成しデータをコピーします。
-
 
 -------
 Version:0.0.4
