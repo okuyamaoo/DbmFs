@@ -198,8 +198,8 @@ public class DbmfsUtil {
             Object value = ent.getValue();
 
             if (!key.equals(DatabaseAccessor.tableMetaInfoKey) && !key.equals(DatabaseAccessor.tableMetaInfoPKeyKey)) { //テーブルのメタ情報と主キーメタ情報は除外
+
                 Map<String, Object> columnMeta = meta.get(key);
-System.out.println("BBBBBBBBBBBBB=" + key + " = " + columnMeta);
                 String javaTypeName = (String)columnMeta.get("javaTypeName");
                 returnMap.put(key, deserializeType(value, javaTypeName));
             }
@@ -253,7 +253,7 @@ System.out.println("BBBBBBBBBBBBB=" + key + " = " + columnMeta);
                 }
             }
         } catch (Exception ee) {
-            
+
         }
 
         return value;

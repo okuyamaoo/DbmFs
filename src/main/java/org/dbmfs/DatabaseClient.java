@@ -259,19 +259,16 @@ public class DatabaseClient {
 
                     if (!da.exsistTable(splitPath[0])) {
 
-                        System.out.println("Not found. Table name = [" + splitPath[0] + "]");
-
                         // テーブルをデータファイルより作成
                         DDLFolder ddlFolder = DbmfsUtil.jsonDeserializeDDLObject(jsonBody);
 
-                        // TODO:ここでcreate文流す
+                        // テーブル自動作成
                         da.createTable(ddlFolder, splitPath[0]);
                     }
 
 
                     Map<String, Map<String, Object>> meta =  da.getAllColumnMeta(splitPath[0], true);
                     Map<String, Object> dataObject = DbmfsUtil.jsonDeserializeSingleObject(jsonBody);
-System.out.println("aaaaaaaaaaaa=" + meta);
                     Map<String, Object> converMapData = DbmfsUtil.convertJsonMap2TypeMap(dataObject, meta);
 
 
