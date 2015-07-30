@@ -27,7 +27,7 @@ DbmFsはデータベースをファイルシステムとしファイラーや
 ※ファイル名は(主キー + .json) になります。
 
 リアルタイムにDBの値を反映しているので、DBのテーブルを増やせば  
-ディレクトリが増え、レコードが増えるとファイルが増えます。   
+ディレクトリが増え、レコードが増えるとファイルが増えます。
 
 　  
 
@@ -36,8 +36,8 @@ DbmFsはデータベースをファイルシステムとしファイラーや
 ファイルをコピーしておくことでテーブル情報も同時にコピーされるため、  
 新しく作成したデータベースに対してファイルをペーストすることで  
 テーブルが存在しない場合は自動的に作成されます。  
-テーブルごと複製する場合はテーブルとなるディレクトリも含めてペーストしてください。 
-ディレクトリ名は元のテーブルと一致している必要はありません。   
+テーブルごと複製する場合はテーブルとなるディレクトリも含めてペーストしてください。
+ディレクトリ名は元のテーブルと一致している必要はありません。
 
 
 以下はテーブルをデータも含めて別のデータベースへ複製する手順です。
@@ -136,9 +136,9 @@ Version
 ※distディレクトリの配下にfuse-j.jarが作成されていれば成功です。
 
 ###3.実行環境を用意
-####3-1.dbmfs-0.0.5.tar.gzを解凍しコンパイル  
-    $tar -zxvf dbmfs-0.0.5.tar.gz
-    $cd dbmfs-0.0.5
+####3-1.dbmfs-0.0.6.tar.gzを解凍しコンパイル  
+    $tar -zxvf dbmfs-0.0.6.tar.gz
+    $cd dbmfs-0.0.6
     $cp ~fuse-jセットアップディレクトリ/dist/fuse-j.jar ./lib/
     $mvn install:install-file -Dfile=./lib/fuse-j.jar -DgroupId=fuse-j -DartifactId=fuse-j -Dversion=2.4 -Dpackaging=jar -DgeneratePom=true
     $mvn clean compile package  
@@ -147,7 +147,7 @@ Version
     $mkdir /var/tmp/dbmfs_test
     $cd  /var/tmp/dbmfs_test
     $cp ~fuse-jセットアップディレクトリ/jni/libjavafs.so ./
-    $cp ~dbmfs-0.0.5/target/dbmfs-0.0.5-jar-with-dependencies.jar ./
+    $cp ~dbmfs-0.0.6/target/dbmfs-0.0.6-jar-with-dependencies.jar ./
 
 ###4.マウントディレクトリを作成
     $mkdir /var/tmp/dbmfsmnt
@@ -158,11 +158,11 @@ Version
 ※MySQLがローカルで起動しておりtestというデータベースが存在しrootユーザにてパスワードなしでログイン出来る想定
 
     cd /var/tmp/dbmfs_test
-    $LD_LIBRARY_PATH=./:/usr/local/lib java -classpath dbmfs-0.0.5-jar-with-dependencies.jar  -Dorg.apache.commons.logging.Log=fuse.logging.FuseLog -Dfuse.logging.level=INFO -Xmx714m -Xms524m -server  org.dbmfs.DbmFsMain -f -o allow_other -o big_writes -o max_read=1300000 /var/tmp/dbmfsmnt -dburl jdbc:mysql://localhost/test -dbuser root  
+    $LD_LIBRARY_PATH=./:/usr/local/lib java -classpath dbmfs-0.0.6-jar-with-dependencies.jar  -Dorg.apache.commons.logging.Log=fuse.logging.FuseLog -Dfuse.logging.level=INFO -Xmx714m -Xms524m -server  org.dbmfs.DbmFsMain -f -o allow_other -o big_writes -o max_read=1300000 /var/tmp/dbmfsmnt -dburl jdbc:mysql://localhost/test -dbuser root  
 
 ※接続ユーザにパスワードが設定されている場合は-dbpassを引数に付加  
 
-    $LD_LIBRARY_PATH=./:/usr/local/lib java -classpath dbmfs-0.0.5-jar-with-dependencies.jar  -Dorg.apache.commons.logging.Log=fuse.logging.FuseLog -Dfuse.logging.level=INFO -Xmx714m -Xms524m -server  org.dbmfs.DbmFsMain -f -o allow_other -o big_writes -o max_read=1300000 /var/tmp/dbmfsmnt -dburl jdbc:mysql://localhost/test -dbuser root -dbpass passwrod  
+    $LD_LIBRARY_PATH=./:/usr/local/lib java -classpath dbmfs-0.0.6-jar-with-dependencies.jar  -Dorg.apache.commons.logging.Log=fuse.logging.FuseLog -Dfuse.logging.level=INFO -Xmx714m -Xms524m -server  org.dbmfs.DbmFsMain -f -o allow_other -o big_writes -o max_read=1300000 /var/tmp/dbmfsmnt -dburl jdbc:mysql://localhost/test -dbuser root -dbpass passwrod  
 
 　  
 
