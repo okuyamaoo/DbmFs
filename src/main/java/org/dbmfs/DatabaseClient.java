@@ -5,6 +5,8 @@ import java.nio.*;
 import java.io.*;
 import java.sql.*;
 
+import org.dbmfs.query.*;
+
 /**
  * DBFS.<br>
  *
@@ -15,10 +17,16 @@ public class DatabaseClient {
 
     private CacheFolder iNodeTmpFolder = new CacheFolder(100000, 1000L*3600*8);
 
+    private BindQueryFolder bindQueryFolder = null;
+
+
     /**
      * コンストラクタ
+     *
+     * @param bindQueryFolder バインドクエリー
      */
-    public DatabaseClient() throws Exception {
+    public DatabaseClient(BindQueryFolder bindQueryFolder) throws Exception {
+        this.bindQueryFolder = bindQueryFolder;
     }
 
 
@@ -39,6 +47,13 @@ public class DatabaseClient {
             for (int idx = 0; idx < tableList.size(); idx++) {
                 directoryObjects.put("/" + tableList.get(idx), "dir");
             }
+
+            // バインドクエリによるフォルダ名を追加
+            List<String> bindFolderNames =  bindQueryFolder.getBindFolderNames();
+            for (String folderName : bindFolderNames) {
+                directoryObjects.put("/" + folderName, "dir");
+            }
+
         } else if (path != null) {
             // "/"以外の場合はテーブル指定なので、テーブル名として利用しSQL実行。データ一覧取得
 
@@ -56,14 +71,29 @@ public class DatabaseClient {
                 }
 
                 // テーブル名指定がDBに存在するテーブル名か確認
+                int tableType = 0; // 0=存在しない、1=テーブル、2=BindQueryFolder
                 if (da.exsistTable(tableName)) {
-                    // テーブル名として存在するため主キーの連結文字列を取得
-                    List<String> pKeyConcatStrList = da.getRecordKeyList(tableName);
-                    for (int idx = 0; idx < pKeyConcatStrList.size(); idx++) {
+                    tableType = 1;
+                } else if (bindQueryFolder.exsisBindFolderName(tableName)) {
+                    tableType = 2;
+                }
 
-                        String pKeyConcatStr = pKeyConcatStrList.get(idx);
-                        directoryObjects.put(DbmfsUtil.createFileFullPathString(tableName, pKeyConcatStr), "file");
-                    }
+                // 主キーの連結文字列を作成
+                List<String> pKeyConcatStrList = new ArrayList();
+                if (tableType == 1) {
+
+                    // テーブル名として存在するため主キーの連結文字列を取得
+                    pKeyConcatStrList = da.getRecordKeyList(tableName);
+                } else if (tableType == 2) {
+
+                    // BindQueryFolderのためクエリと主キー名リストを渡し連結文字列を取得
+                    pKeyConcatStrList = da.getRecordKeyList(bindQueryFolder.getBindFolderQuery(tableName), bindQueryFolder.getBindFolderPKey(tableName));
+                }
+
+                for (int idx = 0; idx < pKeyConcatStrList.size(); idx++) {
+
+                    String pKeyConcatStr = pKeyConcatStrList.get(idx);
+                    directoryObjects.put(DbmfsUtil.createFileFullPathString(tableName, pKeyConcatStr), "file");
                 }
             }
         }
@@ -98,7 +128,8 @@ public class DatabaseClient {
             // 分解した文字列は正しい場合はsplitPath[0]:テーブル名、splitPath[1]:データファイル.jsonもしくはsplitPath[0]:テーブル名のはず
             if (splitPath.length == 1) {
                 // テーブル名のみ
-                if (da.exsistTable(splitPath[0]))
+                if (da.exsistTable(splitPath[0]) || bindQueryFolder.exsisBindFolderName(splitPath[0]))
+                    // 実テーブル指定もしくは、bindquery指定
                     // ディレクトリ用のfstat用文字列を作成し返す
                     return DbmfsUtil.createDirectoryInfoTemplate();
 
@@ -136,7 +167,24 @@ public class DatabaseClient {
                     } else {
                         return DbmfsUtil.createFileInfoTemplate(1024*1024);
                     }
+                } else if (bindQueryFolder.exsisBindFolderName(splitPath[0])) {
 
+                    // テーブルが存在しないがbindqueryでの指定の場合
+                    // ファイル名からデータを特定
+                    // ファイル名には主キー + ".json"が付加されているので取り外す
+                    String realPKeyString = DbmfsUtil.deletedFileTypeCharacter(splitPath[1]);
+
+                    List<Map<String, Object>> dataList = da.getDataList(bindQueryFolder.getBindFolderQuery(splitPath[0]),
+                                                                            bindQueryFolder.getBindFolderPKey(splitPath[0]),
+                                                                                realPKeyString);
+
+                    // BindQueryは強制的にJSON文字列化
+                    // 複数件をJSON化
+                    String dataString = DbmfsUtil.jsonSerialize(dataList);
+                    byte[] strBytes = dataString.getBytes();
+
+                    // ファイル用のfstat用文字列を作成し返す
+                    return DbmfsUtil.createFileInfoTemplate(strBytes.length);
                 } else {
                     // テーブルは存在していない場合ファイルコピーによりテーブルイメージごとコピーしている可能性があるので、
                     // TmpのiNodeがあるか確認
@@ -177,7 +225,17 @@ public class DatabaseClient {
 
                 DatabaseAccessor da = new DatabaseAccessor();
                 // データ取得
-                List<Map<String, Object>> dataList = da.getDataList(pathSplit[0], pKeyStr);
+                // bindqueryか調べる
+                List<Map<String, Object>> dataList = null;
+                if (bindQueryFolder.exsisBindFolderName(pathSplit[0])) {
+                    // bindquery定
+                    dataList = da.getDataList(bindQueryFolder.getBindFolderQuery(pathSplit[0]),
+                                                bindQueryFolder.getBindFolderPKey(pathSplit[0])
+                                                    , pKeyStr);
+                } else {
+                    // 実テーブル指定
+                    dataList = da.getDataList(pathSplit[0], pKeyStr);
+                }
                 if (dataList == null) return 0;
 
                 // JSON文字列化

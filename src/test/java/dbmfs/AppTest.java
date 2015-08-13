@@ -19,6 +19,8 @@ import org.apache.commons.dbutils.ResultSetHandler;
 import org.apache.commons.dbutils.handlers.MapListHandler;
 
 import org.dbmfs.*;
+import org.dbmfs.query.*;
+
 
 /**
  * Unit test for simple App.
@@ -115,7 +117,7 @@ public class AppTest
 
         try {
             // DBに繋がる前提
-            DatabaseClient dbClient = new DatabaseClient();
+            DatabaseClient dbClient = new DatabaseClient(new BindQueryFolder());
             // Topディレクトリにテーブルがあることを確認
             Map<String, String> dirMap = dbClient.getDirectoryInObjects("/");
             if (!dirMap.containsKey("/" + tableName)) {

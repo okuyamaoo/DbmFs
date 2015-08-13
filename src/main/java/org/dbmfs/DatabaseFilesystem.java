@@ -10,6 +10,7 @@ import fuse.*;
 import org.apache.commons.logging.LogFactory;
 import org.apache.commons.logging.Log;
 
+import org.dbmfs.query.*;
 
 /**
  * DBMFS.<br>
@@ -52,10 +53,13 @@ public class DatabaseFilesystem implements Filesystem3, XattrSupport {
     public volatile static int DATABASE_TYPE = 1; //1=MySQL, 2=PostgreSQL
 
 
+    public BindQueryFolder bindQueryFolder = null;
+
+
     public DatabaseFilesystem(String driverName, String databaseAddress, int databasePort, String databaseName, String user, String password) throws IOException {
     }
 
-    public DatabaseFilesystem(String driverName, String databaseUrl, String user, String password) throws IOException {
+    public DatabaseFilesystem(String driverName, String databaseUrl, String user, String password, BindQueryFolder bindQueryFolder) throws IOException {
         log.info("database file system mount start ....");
 
         int files = 0;
@@ -67,6 +71,7 @@ public class DatabaseFilesystem implements Filesystem3, XattrSupport {
         DatabaseFilesystem.user = user;
         DatabaseFilesystem.password = password;
 
+        this.bindQueryFolder = bindQueryFolder;
 
         statfs = new FuseStatfs();
         statfs.blocks = Integer.MAX_VALUE;
@@ -91,7 +96,7 @@ public class DatabaseFilesystem implements Filesystem3, XattrSupport {
 
             DatabaseAccessor.initDatabaseAccessor();
 
-            dbmfsCore = new DatabaseClient();
+            dbmfsCore = new DatabaseClient(this.bindQueryFolder);
         } catch (Exception e) {
 
             throw new IOException(e);

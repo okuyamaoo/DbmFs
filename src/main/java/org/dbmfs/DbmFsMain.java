@@ -7,6 +7,8 @@ import fuse.*;
 import org.apache.commons.logging.LogFactory;
 import org.apache.commons.logging.Log;
 
+import org.dbmfs.query.*;
+
 /**
  * DbmFsMain.<br>
  *
@@ -25,16 +27,17 @@ public class DbmFsMain {
      * -dburl データベースへの接続文字列。DB名まで含む指定。またポート番号なども変えている場合はそちらも含める 例(-dburl jdbc:mysql://localhost/test)
      * -dbuser データベースのデータベースへの接続ユーザ。 例(-dbuser testuser)
      * -dbpass データベースのデータベースへの接続ユーザのパスワード。 例(-dbpass password)
+     * -bindquery テーブル名とSelectクエリを指定し仮想的なテーブルを作成する(Viewのイメージ)
      *
      */
     public static void main(String[] args) {
 
         Map<String, String> dbmfsParams = new HashMap();
         List<String> fuseParams = new ArrayList();
-
+        BindQueryFolder bindQueryFolder = new BindQueryFolder();
         try {
 
-            compileBootArgument(args, dbmfsParams, fuseParams);
+            compileBootArgument(args, dbmfsParams, fuseParams, bindQueryFolder);
             if (dbmfsParams.size() != 4) throw new Exception();
         } catch (Exception e) {
             printBootMessageError();
@@ -44,7 +47,7 @@ public class DbmFsMain {
         try {
             Runtime.getRuntime().addShutdownHook(new ShutdownProccess());
 
-            DatabaseFilesystem dbfs = new DatabaseFilesystem(dbmfsParams.get("dbdriver"), dbmfsParams.get("dburl"), dbmfsParams.get("dbuser"), dbmfsParams.get("dbpass"));
+            DatabaseFilesystem dbfs = new DatabaseFilesystem(dbmfsParams.get("dbdriver"), dbmfsParams.get("dburl"), dbmfsParams.get("dbuser"), dbmfsParams.get("dbpass"), bindQueryFolder);
             FuseMount.mount(fuseParams.toArray(new String[0]), dbfs, log);
         } catch (Exception e) {
            e.printStackTrace();
@@ -57,7 +60,7 @@ public class DbmFsMain {
      * TODO 簡易
      *
      */
-    private static void compileBootArgument(String[] args, Map<String, String> dbmfsParams, List<String> fuseParams) {
+    private static void compileBootArgument(String[] args, Map<String, String> dbmfsParams, List<String> fuseParams, BindQueryFolder bindQueryFolder) {
         dbmfsParams.put("dbpass", ""); // パスワードは省略有り
         dbmfsParams.put("dbdriver", "com.mysql.jdbc.Driver"); // デフォルトドライバーはMySQL
 
@@ -86,6 +89,17 @@ public class DbmFsMain {
               continue;
             }
 
+            // BindQueryを設定
+            // 指定フォーマットは
+            // フォルダ名 + @ + SQL文字列
+            if (args[idx].indexOf("-bindquery") == 0) {
+              idx++;
+              String[] bindQueryInfo = args[idx].split("/");
+              bindQueryFolder.addBindQuery(bindQueryInfo[0], bindQueryInfo[1], bindQueryInfo[2]);
+              continue;
+            }
+
+
             fuseParams.add(args[idx]);
         }
     }
@@ -99,6 +113,8 @@ public class DbmFsMain {
     private static void printBootMessageError() {
         System.out.println("Start argument is invalid !!");
         System.out.println("Usage : java ~~ org.dbmfs.DbmFs -dburl jdbc:mysql://localhost/test -dbuser root");
+        System.out.println("                                   or                                          ");
+        System.out.println("Usage : java ~~ org.dbmfs.DbmFs -dburl jdbc:mysql://localhost/test -dbuser root -bindquery queryfoldername/select column1,column2 from tablename/PrimaryKeyColumnNames");
         System.out.println("                                   or                                          ");
         System.out.println("                org.dbmfs.DbmFs -dburl jdbc:mysql://localhost/test -dbuser root -dbpass *********");
         System.out.println("                                   or                                          ");

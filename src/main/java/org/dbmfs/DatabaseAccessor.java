@@ -378,6 +378,76 @@ public class DatabaseAccessor {
     }
 
 
+    /**
+     * クエリ文字列と主キー列指定から該当データMap型をリストに詰めて返す.<br>
+     * データが存在しない場合やエラー発生時はnullを返す<br>
+     *
+     * @param targetTableName テーブル名
+     * @param pKeyConcatStr 主キー文字列(連結文字列)
+     * @return 複数件のデータ
+     */
+    public List<Map<String, Object>> getDataList(String query, List<String> primaryKeyColumnNames, String pKeyConcatStr) throws Exception {
+
+        List <Map<String, Object>> queryResult = null;
+        Connection conn = null;
+        try {
+            // 主キー連結文字列を分解
+            String[] keyStrSplit = pKeyConcatStr.split(primaryKeySep);
+
+            if (keyStrSplit.length != primaryKeyColumnNames.size()) return null;
+
+            // クエリ組み立て
+            StringBuilder queryBuf = new StringBuilder();
+            queryBuf.append("select * from (");
+            queryBuf.append(query);
+            queryBuf.append(") t1 where ");
+
+            // クエリパラメータ(主キー)作成
+            Object[] params = new Object[primaryKeyColumnNames.size()];
+
+            String whereSep = "";
+            // クエリ組み立て時にbindqueryの場合は主キーの型が不明なので一旦String型とする
+            // (TODO：No1)後々はデータ内にselect時のメタ情報を埋めて利用する
+            for (int idx = 0; idx < primaryKeyColumnNames.size(); idx++) {
+
+                params[idx] = keyStrSplit[idx];
+                queryBuf.append(whereSep);
+                queryBuf.append("t1.");
+                queryBuf.append(primaryKeyColumnNames.get(idx));
+                queryBuf.append(" = ? ");
+                whereSep = " and ";
+            }
+
+
+            conn = getDbConnection();
+            ResultSetHandler<?> resultSetHandler = new MapListHandler();
+            QueryRunner qr = new QueryRunner();
+
+
+            // クエリ実行
+            queryResult = (List<Map<String, Object>>)qr.query(conn, queryBuf.toString(), resultSetHandler, params);
+
+            if (queryResult == null || queryResult.size() < 1) return null;
+
+            for (Map resultData : queryResult) {
+                resultData.put(tableMetaInfoKey, "");
+            }
+
+            conn.close();
+            conn = null;
+        } catch(Exception e) {
+            e.printStackTrace();
+            throw e;
+        } finally {
+            try {
+                if (conn != null) conn.close();
+            }  catch(Exception e2) {}
+        }
+
+        return queryResult;
+    }
+
+
     // テーブル名を指定して主キーのリストをメタ情報から取得
     private List<String> getPrimaryKeyColumnNames(String tableName) throws Exception {
         if (pKeyColumnNameCacheFolder.containsKey(tableName)) return (List<String>)pKeyColumnNameCacheFolder.get(tableName);
@@ -546,6 +616,64 @@ public class DatabaseAccessor {
                 List cachePutList = new ArrayList();
                 cachePutList.add(data);
                 dataCacheFolder.put(tableName + tableNameSep + queryDataStrBuf.toString(), cachePutList);
+                resultList.add(queryDataStrBuf.toString());
+            }
+
+            conn.close();
+            conn = null;
+        } catch(Exception e) {
+            e.printStackTrace();
+            throw e;
+        } finally {
+            try {
+                if (conn != null) conn.close();
+            }  catch(Exception e2) {}
+        }
+        return resultList;
+    }
+
+
+    /**
+     * 指定されたクエリにての全レコードを取得し指定されたカラム値の連結文字列を作成する.<br>
+     *
+     * @param query クエリ文字列(Select句)
+     * @param primaryKeyColumnNames 連結カラムの名称のリスト
+     * @return 主キーを連結した文字列を格納したリスト
+     */
+    public List<String> getRecordKeyList(String query, List<String> primaryKeyColumnNames) throws Exception {
+        List<String> resultList = new ArrayList();
+        Connection conn = null;
+        try {
+
+            // Connection取得
+            conn = getDbConnection();
+
+            ResultSetHandler<?> resultSetHandler = new MapListHandler();
+            QueryRunner qr = new QueryRunner();
+
+            // クエリ実行
+            List<Map<String, Object>> queryResult = (List<Map<String, Object>>)qr.query(conn, query, resultSetHandler);
+
+
+            // クエリ結果から主キー値を連結した文字列を作り出す
+            for (int idx = 0; idx < queryResult.size(); idx++) {
+
+                Map data = queryResult.get(idx);
+                StringBuilder queryDataStrBuf = new StringBuilder(40);
+
+                String pKeyStrSep = "";
+                for (int pIdx = 0; pIdx < primaryKeyColumnNames.size(); pIdx++) {
+                    queryDataStrBuf.append(pKeyStrSep);
+                    queryDataStrBuf.append(data.get(primaryKeyColumnNames.get(pIdx)));
+                    // TODO：ここでdata.getで取れた値の型をquery変数＋primaryKeyColumnNames.get(pIdx)の文字列で記録し
+                    //       後で(TODO：No1)で利用する
+                    pKeyStrSep = DatabaseAccessor.primaryKeySep;
+                }
+
+/*
+                List cachePutList = new ArrayList();
+                cachePutList.add(data);
+                dataCacheFolder.put(tableName + tableNameSep + queryDataStrBuf.toString(), cachePutList);*/
                 resultList.add(queryDataStrBuf.toString());
             }
 
