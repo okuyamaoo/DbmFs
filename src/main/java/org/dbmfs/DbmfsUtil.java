@@ -19,6 +19,7 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 public class DbmfsUtil {
 
     public static String fileNameLastString = ".json";
+    public static String pathSeparator = "/";
 
     /**
      * ディレクトリのfstatのテンプレート情報を作成し返す
@@ -206,6 +207,13 @@ public class DbmfsUtil {
         }
         return returnMap;
     }
+
+
+    public static int countPathSeparator(String path) {
+        if (path == null || path.equals("")) return 0;
+        return ((path.length() - path.replaceAll(pathSeparator, "").length()) / pathSeparator.length());
+    }
+
 
     public static DDLFolder jsonDeserializeDDLObject(String jsonBody) throws IOException {
 

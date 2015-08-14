@@ -26,6 +26,7 @@ public class DatabaseFilesystem implements Filesystem3, XattrSupport {
     public volatile static int blockSize = 1024*64;
     public volatile static boolean useRealSize = true;
 
+    private volatile static boolean readOnlyMount = false;
 
     private FuseStatfs statfs;
 
@@ -59,7 +60,7 @@ public class DatabaseFilesystem implements Filesystem3, XattrSupport {
     public DatabaseFilesystem(String driverName, String databaseAddress, int databasePort, String databaseName, String user, String password) throws IOException {
     }
 
-    public DatabaseFilesystem(String driverName, String databaseUrl, String user, String password, BindQueryFolder bindQueryFolder) throws IOException {
+    public DatabaseFilesystem(String driverName, String databaseUrl, String user, String password, String readOnly, BindQueryFolder bindQueryFolder) throws IOException {
         log.info("database file system mount start ....");
 
         int files = 0;
@@ -70,6 +71,7 @@ public class DatabaseFilesystem implements Filesystem3, XattrSupport {
         DatabaseFilesystem.databaseUrl = databaseUrl;
         DatabaseFilesystem.user = user;
         DatabaseFilesystem.password = password;
+        if (readOnly.equals("1")) readOnlyMount = true;
 
         this.bindQueryFolder = bindQueryFolder;
 
@@ -108,12 +110,12 @@ public class DatabaseFilesystem implements Filesystem3, XattrSupport {
 
     public int chmod(String path, int mode) throws FuseException {
         log.info("chmod " + path + " " + mode);
-        throw new FuseException("Read Only").initErrno(FuseException.EACCES);
+        throw new FuseException("No Support Method").initErrno(FuseException.EACCES);
     }
 
     public int chown(String path, int uid, int gid) throws FuseException {
         log.info("chown " + path + " " + uid + " " + gid);
-        throw new FuseException("Read Only").initErrno(FuseException.EACCES);
+        throw new FuseException("No Support Method").initErrno(FuseException.EACCES);
     }
 
 
@@ -146,7 +148,7 @@ public class DatabaseFilesystem implements Filesystem3, XattrSupport {
 //        0     1 2 3 4 5           6 7     8 9                10
                 if (infomationString == null || infomationString.trim().equals("")) {
                     // データ無し
-                    if (path.trim().indexOf("json") == -1) {
+                    if (path.trim().indexOf("json") == -1 && DbmfsUtil.countPathSeparator(path.trim()) == 1) {
                         // ディレクトリとして結果を返す
                         setInfo[1] = new Integer(FuseFtypeConstants.TYPE_DIR | 0777).toString();
                         pathInfo = new String[9];
@@ -246,12 +248,14 @@ public class DatabaseFilesystem implements Filesystem3, XattrSupport {
 
     public int mkdir(String path, int mode) throws FuseException {
         log.info("mkdir " + path + " " + mode);
+        if (readOnlyMount) throw new FuseException("Read Only").initErrno(FuseException.EACCES);
         return 0;
         //throw new FuseException("Read Only").initErrno(FuseException.EACCES);
     }
 
     public int mknod(String path, int mode, int rdev) throws FuseException {
         log.info("mknod " + path + " " + mode + " " + rdev);
+        if (readOnlyMount) throw new FuseException("Read Only").initErrno(FuseException.EACCES);
 
         String modeStr = Integer.toOctalString(mode);
         String pathType = "";
@@ -329,12 +333,12 @@ public class DatabaseFilesystem implements Filesystem3, XattrSupport {
 
     public int rename(String from, String to) throws FuseException {
         log.info("rename " + from + " " + to);
-        throw new FuseException("Read Only").initErrno(FuseException.EACCES);
+        throw new FuseException("No Support Method").initErrno(FuseException.EACCES);
     }
 
     public int rmdir(String path) throws FuseException {
         log.info("rmdir " + path);
-        throw new FuseException("Read Only").initErrno(FuseException.EACCES);
+        throw new FuseException("No Support Method").initErrno(FuseException.EACCES);
     }
 
     public int statfs(FuseStatfsSetter statfsSetter) throws FuseException {
@@ -346,16 +350,18 @@ public class DatabaseFilesystem implements Filesystem3, XattrSupport {
 
     public int symlink(String from, String to) throws FuseException {
         log.info("symlink " + from + " " + to);
-        return Errno.EACCES;
+        throw new FuseException("No Support Method").initErrno(FuseException.EACCES);
     }
 
     public int truncate(String path, long size) throws FuseException {
         log.info("truncate " + path + " " + size);
+        if (readOnlyMount) throw new FuseException("Read Only").initErrno(FuseException.EACCES);
+
         //throw new FuseException("Read Only").initErrno(FuseException.EACCES);
         try {
-            dbmfsCore.deleteData(path, null);
-        } catch (FuseException fe) {
-            throw fe;
+            //dbmfsCore.deleteData(path, null);
+        /*} catch (FuseException fe) {
+            throw fe;*/
         } catch (Exception e) {
             new FuseException(e);
         }
@@ -364,6 +370,7 @@ public class DatabaseFilesystem implements Filesystem3, XattrSupport {
 
     public int unlink(String path) throws FuseException {
         log.info("unlink " + path);
+        if (readOnlyMount) throw new FuseException("Read Only").initErrno(FuseException.EACCES);
         //throw new FuseException("Read Only").initErrno(FuseException.EACCES);
         try {
             dbmfsCore.deleteData(path, null);
@@ -388,6 +395,7 @@ public class DatabaseFilesystem implements Filesystem3, XattrSupport {
 
     public int write(String path, Object fh, boolean isWritepage, ByteBuffer buf, long offset) throws FuseException {
         log.info("write  path:" + path + " offset:" + offset + " isWritepage:" + isWritepage + " buf.limit:" + buf.limit());
+        if (readOnlyMount) throw new FuseException("Read Only").initErrno(FuseException.EACCES);
         try {
 
             if (fh == null) return Errno.EBADE;

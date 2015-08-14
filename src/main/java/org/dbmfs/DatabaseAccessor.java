@@ -697,7 +697,8 @@ public class DatabaseAccessor {
             if (exsistData(tableName, pKeyConcatStr)) {
 
                 // データが存在する
-                return updateData(tableName, dataObject);
+                deleteData(tableName, pKeyConcatStr);
+                return insertData(tableName, dataObject);   
             } else {
 
                 // データが存在しない
@@ -824,7 +825,9 @@ public class DatabaseAccessor {
                 // Set句を作成
                 setBuf.append(columnName);
                 setBuf.append(" = ? ");
+                setParams.add(columnValue);
                 setSep = ",";
+
             }
 
             // Updateのwhereを作成
@@ -844,7 +847,6 @@ public class DatabaseAccessor {
 
                     whereBuf.append(columnName);
                     whereBuf.append(" = ? ");
-                    setParams.add(columnValue);
                     whereParams.add(columnValue);
                 }
                 whereSep = " and ";

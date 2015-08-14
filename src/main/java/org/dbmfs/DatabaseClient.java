@@ -128,10 +128,10 @@ public class DatabaseClient {
             // 分解した文字列は正しい場合はsplitPath[0]:テーブル名、splitPath[1]:データファイル.jsonもしくはsplitPath[0]:テーブル名のはず
             if (splitPath.length == 1) {
                 // テーブル名のみ
-                if (da.exsistTable(splitPath[0]) || bindQueryFolder.exsisBindFolderName(splitPath[0]))
-                    // 実テーブル指定もしくは、bindquery指定
-                    // ディレクトリ用のfstat用文字列を作成し返す
-                    return DbmfsUtil.createDirectoryInfoTemplate();
+                // 実テーブル指定もしくは、bindquery指定
+                // ディレクトリ用のfstat用文字列を作成し返す
+                if (da.exsistTable(splitPath[0]) || bindQueryFolder.exsisBindFolderName(splitPath[0])) return DbmfsUtil.createDirectoryInfoTemplate();
+
 
             } else if (splitPath.length == 2) {
                 // テーブル名とデータファイル名
