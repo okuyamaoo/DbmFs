@@ -568,7 +568,7 @@ public class DatabaseAccessor {
      * @param tableName テーブル名
      * @return 主キーを連結した文字列を格納したリスト
      */
-    public List<String> getRecordKeyList(String tableName) throws Exception {
+    public List<String> getRecordKeyList(String tableName, int offset, int limit) throws Exception {
         List<String> resultList = new ArrayList();
         Connection conn = null;
         try {
@@ -585,7 +585,7 @@ public class DatabaseAccessor {
             // プライマリーキーのみをselect句に指定したクエリにてデータ取得
             // TODO:このままだと大量レコードに対応出来ない
             // SQL組み立て
-            String query = createAllColumnQuery(tableName);
+            String query = createAllColumnQuery(tableName, offset, limit);
 //            String query = createPrimaryKeyQuery(tableName, primaryKeyColumnNames);
             ResultSetHandler<?> resultSetHandler = new MapListHandler();
             QueryRunner qr = new QueryRunner();
@@ -640,7 +640,7 @@ public class DatabaseAccessor {
      * @param primaryKeyColumnNames 連結カラムの名称のリスト
      * @return 主キーを連結した文字列を格納したリスト
      */
-    public List<String> getRecordKeyList(String query, List<String> primaryKeyColumnNames) throws Exception {
+    public List<String> getRecordKeyList(String query, List<String> primaryKeyColumnNames, int offset, int limit) throws Exception {
         List<String> resultList = new ArrayList();
         Connection conn = null;
         try {
@@ -651,6 +651,8 @@ public class DatabaseAccessor {
             ResultSetHandler<?> resultSetHandler = new MapListHandler();
             QueryRunner qr = new QueryRunner();
 
+            // クエリに対してlimit offset を付加
+            String executeQuery = createAllColumnQuery("(" + query + ")", offset, limit);
             // クエリ実行
             List<Map<String, Object>> queryResult = (List<Map<String, Object>>)qr.query(conn, query, resultSetHandler);
 
@@ -698,7 +700,7 @@ public class DatabaseAccessor {
 
                 // データが存在する
                 deleteData(tableName, pKeyConcatStr);
-                return insertData(tableName, dataObject);   
+                return insertData(tableName, dataObject);
             } else {
 
                 // データが存在しない
@@ -972,7 +974,7 @@ public class DatabaseAccessor {
      * 主キーを全てselect句に指定したクエリーを作成する
      *
      */
-    private String createAllColumnQuery(String tableName) {
+    private String createAllColumnQuery(String targetDataQuery, int offset, int limit) {
         StringBuilder queryBuf = new StringBuilder();
 
         String sep = "";
@@ -980,7 +982,11 @@ public class DatabaseAccessor {
         queryBuf.append("select *");
 
         queryBuf.append(" from ");
-        queryBuf.append(tableName);
+        queryBuf.append(targetDataQuery);
+        queryBuf.append(" limit ");
+        queryBuf.append(limit);
+        queryBuf.append(" offset ");
+        queryBuf.append(offset);
         return queryBuf.toString();
     }
 

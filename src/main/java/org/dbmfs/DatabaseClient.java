@@ -30,18 +30,28 @@ public class DatabaseClient {
     }
 
 
-    /**
-     * 指定されたパス配下に含まれるディレクトリとファイルの情報を返す
-     *
-     */
     public Map<String, String> getDirectoryInObjects(String path) throws Exception {
+        return getDirectoryInObjects(path, 0, Integer.MAX_VALUE);
+    }
+
+    /**
+     * 指定されたパス配下に含まれるディレクトリとファイルの情報を返す.<br>
+     * ファイルを取得する件数をlimit offsetで指定可能
+     *
+     * @param path
+     * @param fileObjectOffset
+     * @param fileObjectLimit
+     * @return パス名をキーにし、そのパス名がfileかdirのどちらを表すかを格納したMap
+     */
+     public Map<String, String> getDirectoryInObjects(String path, int fileObjectOffset, int fileObjectLimit) throws Exception {
+
             // /a = {/a/1.txt=file, /a/2.txt=file}
             // / = {/a=dir, /3.txt=file}
         Map<String, String> directoryObjects = new LinkedHashMap();
         DatabaseAccessor da = new DatabaseAccessor();
 
         // Topディレクトリである"/"がpathの場合はテーブル一覧取得
-        if (path != null && path.equals("/")) {
+        if (DbmfsUtil.isTopDirectoryPath(path)) {
 
             List<String> tableList = da.getTableList();
             for (int idx = 0; idx < tableList.size(); idx++) {
@@ -70,6 +80,7 @@ public class DatabaseClient {
                     }
                 }
 
+                System.out.println("tableName=" +tableName);
                 // テーブル名指定がDBに存在するテーブル名か確認
                 int tableType = 0; // 0=存在しない、1=テーブル、2=BindQueryFolder
                 if (da.exsistTable(tableName)) {
@@ -83,11 +94,11 @@ public class DatabaseClient {
                 if (tableType == 1) {
 
                     // テーブル名として存在するため主キーの連結文字列を取得
-                    pKeyConcatStrList = da.getRecordKeyList(tableName);
+                    pKeyConcatStrList = da.getRecordKeyList(tableName, fileObjectOffset, fileObjectLimit);
                 } else if (tableType == 2) {
 
-                    // BindQueryFolderのためクエリと主キー名リストを渡し連結文字列を取得
-                    pKeyConcatStrList = da.getRecordKeyList(bindQueryFolder.getBindFolderQuery(tableName), bindQueryFolder.getBindFolderPKey(tableName));
+                    // BindQueryFolder(クエリ指定による仮想フォルダ)のためクエリと主キー名リストを渡し連結文字列を取得
+                    pKeyConcatStrList = da.getRecordKeyList(bindQueryFolder.getBindFolderQuery(tableName), bindQueryFolder.getBindFolderPKey(tableName), fileObjectOffset, fileObjectLimit);
                 }
 
                 for (int idx = 0; idx < pKeyConcatStrList.size(); idx++) {
@@ -114,7 +125,7 @@ public class DatabaseClient {
 //   /a.txt   = file  1  0  0  40  1435101323  1  33188  0  27024968062029  0
 
         // Topディレクトリである"/"がpathの場合はテーブル一覧取得
-        if (key != null && key.equals("/")) return null;
+        if (DbmfsUtil.isTopDirectoryPath(key)) return null;
 
         StringBuilder strBuf = new StringBuilder();
 

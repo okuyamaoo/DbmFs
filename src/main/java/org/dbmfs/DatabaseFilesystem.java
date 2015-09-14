@@ -11,6 +11,7 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.commons.logging.Log;
 
 import org.dbmfs.query.*;
+import org.dbmfs.params.*;
 
 /**
  * DBMFS.<br>
@@ -29,6 +30,8 @@ public class DatabaseFilesystem implements Filesystem3, XattrSupport {
     private volatile static boolean readOnlyMount = false;
 
     private FuseStatfs statfs;
+
+    private volatile static int maxShowFiles = 100; // 1ディレクトリ内に表示する最大ファイル数
 
     public static String driverName = null;
     public static String databaseUrl = null;
@@ -126,7 +129,7 @@ public class DatabaseFilesystem implements Filesystem3, XattrSupport {
 
         try {
 
-            if (path.trim().equals("/")) {
+            if (DbmfsUtil.isTopDirectoryPath(path)) {
 
                 setInfo[1] = new Integer(FuseFtypeConstants.TYPE_DIR | 0777).toString();
                 pathInfo = new String[9];
@@ -137,8 +140,15 @@ public class DatabaseFilesystem implements Filesystem3, XattrSupport {
                 pathInfo[5] = "0";
                 pathInfo[6] = "0";
                 pathInfo[8] = "0";
+
             } else {
-                String infomationString = dbmfsCore.getInfomation(path.trim());
+
+                // 表示最大ファイル数を超えた場合のディレクトリの指定か確認
+
+                // パスから不要なoffse limit指定を取り除く
+                path = DbmfsUtil.convertRealPath(path.trim());
+
+                String infomationString = dbmfsCore.getInfomation(path);
 //   /a       = dir    1  0  0  0  1435098875  0  493    0  24576974580222
 //   /a/1.txt = file  1  0  0  0  1435098888  0  33188  0  24589836752449  -1
 //   /a/2.txt = file  1  0  0  0  1435098890  0  33188  0  24591395798630  -1
@@ -211,15 +221,34 @@ public class DatabaseFilesystem implements Filesystem3, XattrSupport {
         log.info("getdir " + path);
 
         try {
+
             // /a = {/a/1.txt=file, /a/2.txt=file}
             // / = {/a=dir, /3.txt=file}
 
-            Map dirChildMap =  dbmfsCore.getDirectoryInObjects(path.trim());
+            // path指定から取得するテーブル及び取得位置を特定
+            // DbmfsUtil.parseLimitOffsetCharacter(); TODO:ここでテーブル名部分とlimit offset指定がある場合はバラす
+            System.out.println("path=" + path);
+            TargetDirectoryParams targetDirectoryParams = DbmfsUtil.parseTargetDirectoryPath(path);
+
+            Map dirChildMap =  null;
+            if (targetDirectoryParams.hasLimitOffsetParams()) {
+                dirChildMap =  dbmfsCore.getDirectoryInObjects(targetDirectoryParams.tableName, targetDirectoryParams.offset, targetDirectoryParams.limit);
+            } else {
+                dirChildMap =  dbmfsCore.getDirectoryInObjects(targetDirectoryParams.tableName);
+            }
             if (dirChildMap == null) return Errno.ENOTDIR;
 
             Set entrySet = dirChildMap.entrySet();
             Iterator entryIte = entrySet.iterator();
+
+            // 暫定的に100件を超えるレコードの場合は"100_"というフォルダを仮想的に作成
+            int nowCount = 0;
             while(entryIte.hasNext()) {
+
+                nowCount++;
+                // offset limit指定を含まずに表示最大数を超えたらbreak;
+                if (maxShowFiles < nowCount &&
+                    targetDirectoryParams.hasLimitOffsetParams() == false) break;
 
                 Map.Entry obj = (Map.Entry)entryIte.next();
 
@@ -233,6 +262,8 @@ public class DatabaseFilesystem implements Filesystem3, XattrSupport {
                     dirFiller.add(nameCnv[nameCnv.length - 1], 0L, FuseFtype.TYPE_DIR);
                 }
             }
+            // 仮想的に"100_"フォルダを作成
+            if (dirChildMap.size() > maxShowFiles && targetDirectoryParams.hasLimitOffsetParams() == false) dirFiller.add(maxShowFiles + "_", 0L, FuseFtype.TYPE_DIR);
         } catch (FuseException fe) {
             throw fe;
         } catch (Exception e) {
@@ -256,6 +287,9 @@ public class DatabaseFilesystem implements Filesystem3, XattrSupport {
     public int mknod(String path, int mode, int rdev) throws FuseException {
         log.info("mknod " + path + " " + mode + " " + rdev);
         if (readOnlyMount) throw new FuseException("Read Only").initErrno(FuseException.EACCES);
+
+        // ファイルパスから不要なoffset limit指定を取り除く
+        path = DbmfsUtil.convertRealPath(path.trim());
 
         String modeStr = Integer.toOctalString(mode);
         String pathType = "";
@@ -312,6 +346,9 @@ public class DatabaseFilesystem implements Filesystem3, XattrSupport {
         long fileDp = System.nanoTime();
 
         try {
+            // ファイルパスから不要なoffset limit指定を取り除く
+            path = DbmfsUtil.convertRealPath(path.trim());
+
             String pathInfo = dbmfsCore.getInfomation(path.trim());
             if (pathInfo == null || pathInfo.trim().equals("")) return Errno.ENOENT;
 
@@ -373,6 +410,9 @@ public class DatabaseFilesystem implements Filesystem3, XattrSupport {
         if (readOnlyMount) throw new FuseException("Read Only").initErrno(FuseException.EACCES);
         //throw new FuseException("Read Only").initErrno(FuseException.EACCES);
         try {
+            // ファイルパスから不要なoffset limit指定を取り除く
+            path = DbmfsUtil.convertRealPath(path.trim());
+
             dbmfsCore.deleteData(path, null);
         } catch (FuseException fe) {
             throw fe;
@@ -399,6 +439,9 @@ public class DatabaseFilesystem implements Filesystem3, XattrSupport {
         try {
 
             if (fh == null) return Errno.EBADE;
+
+            // ファイルパスから不要なoffset limit指定を取り除く
+            path = DbmfsUtil.convertRealPath(path.trim());
 
             synchronized (syncFileAccess[((path.hashCode() << 1) >>> 1) % syncFileAccess.length]) {
 
@@ -471,7 +514,10 @@ public class DatabaseFilesystem implements Filesystem3, XattrSupport {
         log.info("read:" + path + " offset:" + offset + " buf.limit:" + buf.limit());
         if (fh == null) return Errno.EBADE;
         try {
-            int readLen = dbmfsCore.readValue(path.trim(), offset, buf.limit(), buf);
+            // ファイルパスから不要なoffset limit指定を取り除く
+            path = DbmfsUtil.convertRealPath(path.trim());
+
+            int readLen = dbmfsCore.readValue(path, offset, buf.limit(), buf);
         } catch (FuseException fe) {
             throw fe;
         } catch (Exception e) {
@@ -482,6 +528,9 @@ public class DatabaseFilesystem implements Filesystem3, XattrSupport {
 
     public int release(String path, Object fh, int flags) throws FuseException {
         log.info("release " + path + " " + fh +  " " + flags);
+        // ファイルパスから不要なoffset limit指定を取り除く
+        path = DbmfsUtil.convertRealPath(path.trim());
+
         synchronized (this.syncFileAccess[((path.hashCode() << 1) >>> 1) % syncFileAccess.length]) {
 
             openFileStatus.remove(path.trim());
@@ -492,6 +541,9 @@ public class DatabaseFilesystem implements Filesystem3, XattrSupport {
 
     public int flush(String path, Object fh) throws FuseException {
         log.info("flush " + path + " " + fh);
+        // ファイルパスから不要なoffset limit指定を取り除く
+        path = DbmfsUtil.convertRealPath(path.trim());
+
         synchronized (this.syncFileAccess[((path.hashCode() << 1) >>> 1) % syncFileAccess.length]) {
             openFileStatus.remove(path.trim());
             saveBufferedData(fh);
@@ -502,6 +554,9 @@ public class DatabaseFilesystem implements Filesystem3, XattrSupport {
 
     public int fsync(String path, Object fh, boolean isDatasync) throws FuseException {
         log.info("fsync " + path + " " + fh + " " + isDatasync);
+        // ファイルパスから不要なoffset limit指定を取り除く
+        path = DbmfsUtil.convertRealPath(path.trim());
+
         synchronized (this.syncFileAccess[((path.hashCode() << 1) >>> 1) % syncFileAccess.length]) {
             openFileStatus.remove(path.trim());
             saveBufferedData(fh);

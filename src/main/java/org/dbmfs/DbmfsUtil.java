@@ -10,6 +10,8 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.SerializationFeature;
 
+import org.dbmfs.params.*;
+
 /**
  * DbmFSでのUtilクラス.＜br＞
  *
@@ -20,6 +22,18 @@ public class DbmfsUtil {
 
     public static String fileNameLastString = ".json";
     public static String pathSeparator = "/";
+
+
+    /**
+     * 指定されたパスがTopディレクトリを表す文字列かを返す
+     *
+     * @param path ターゲットパス
+     * @return true:Topディレクトリ / false:Topディレクトリではない
+     */
+    public static boolean isTopDirectoryPath(String path) {
+        if (path != null && path.trim().equals("/")) return true;
+        return false;
+    }
 
     /**
      * ディレクトリのfstatのテンプレート情報を作成し返す
@@ -163,6 +177,114 @@ public class DbmfsUtil {
         return mapper.readValue(convertDataString + "}", Map.class);
     }
 
+
+
+    /**
+     * fuse-jから渡ってくるパス文字列をdbmfsが理解する適切なファイルパスへ変換する
+     * 具体的には/tablename/100_200/file.jsonとなっている部分を/tablename/file.jsonへ置き換える
+     * /tablename/100_200や/tablename/100_は/tablenameへ置き換える
+     * @param path
+     * @return 変換後文字列
+     */
+    public static String convertRealPath(String path) {
+        // Topディレクトリ指定はそのまま返却
+        if (path.equals("/")) return path;
+
+        // パスが"/100_"や"/100_200"で終わっている場合
+        if (path.matches(".*/[0-9_]*$") || path.matches(".*/[0-9_]*/$")) {
+            // 最後の/100_を削除
+            String[] pathSplit = path.split("/");
+            StringBuilder pathBuf = new StringBuilder();
+            pathBuf.append("/");
+            pathBuf.append(pathSplit[1]);
+            return pathBuf.toString();
+        }
+
+        if (path.matches(".*/[0-9_]*$_[0-9_]*$") || path.matches(".*/[0-9_]*$_[0-9_]*/$")) {
+            // 最後の/100_を削除
+            String[] pathSplit = path.split("/");
+            StringBuilder pathBuf = new StringBuilder();
+            pathBuf.append("/");
+            pathBuf.append(pathSplit[1]);
+            return pathBuf.toString();
+        }
+
+        // ファイル指定の中にoffset limit の数値が入っているかを確認
+        if (path.matches(".*/[0-9_]*/.*json$") == true
+            || path.matches(".*/[0-9_]*_[0-9_]*/.*json$") == true) {
+            // ファイル指定でかつ offset limitを含む
+            // offset limit部分削除
+            // Pathは必ず /tablename/100_/filename.json　となっているはず
+            String[] pathSplit = path.split("/");
+            StringBuilder pathBuf = new StringBuilder();
+            for (int idx = 1; idx < pathSplit.length; idx++) {
+                if (idx != 2) {
+                    pathBuf.append("/");
+                    pathBuf.append(pathSplit[idx]);
+                }
+            }
+            return pathBuf.toString();
+        }
+        return path;
+    }
+
+
+    /**
+     * パス指定のディレクトリ文字列からlimit/offset指定が存在する場合はパースしTargetDirectoryParamsクラスオブジェクトを返す
+     *
+     * @param pathCharacter パス文字列(/dirname/100_　など)
+     * @return TargetDirectoryParamsオブジェクト
+     */
+    public static TargetDirectoryParams parseTargetDirectoryPath(String pathCharacter) {
+        if (pathCharacter.trim().equals("") || pathCharacter.trim().equals("/")) return new TargetDirectoryParams("/");
+
+        String[] pathCharacterSplit = pathCharacter.split(pathSeparator);
+        if (pathCharacterSplit[pathCharacterSplit.length - 1].matches("[0-9_]*$")) {
+
+            // 数値と"_"のみで構成されているのでlimit. offsetが指定されている可能性有り
+            String offsetLimitStr = pathCharacterSplit[pathCharacterSplit.length - 1];
+
+            String[] offsetLimitSplit = offsetLimitStr.split("_");
+
+            int limit = Integer.MAX_VALUE;
+            int offset = 0;
+
+            // ファイルパス中の"/100_200"部分を分解 ("100_"などの場合も有り)
+            List<String> offsetLimitList = new ArrayList();
+            for (String str : offsetLimitSplit) {
+                if (!str.trim().equals("")) {
+                    offsetLimitList.add(str);
+                }
+            }
+
+
+            // テーブル名までのパスを再構築
+            StringBuilder targetPath = new StringBuilder();
+            for (int idx = 0; idx < pathCharacterSplit.length - 1; idx++) {
+                if (!pathCharacterSplit[idx].trim().equals("")) {
+                    targetPath.append("/");
+                    targetPath.append(pathCharacterSplit[idx]);
+                }
+            }
+
+            // offset limit の部分がどのように指定されているか確認
+            if (offsetLimitList.size() == 1) {
+
+                // offsetのみ指定
+                return new TargetDirectoryParams(targetPath.toString(), new Integer(offsetLimitList.get(0)).intValue(), Integer.MAX_VALUE);
+            } else if (offsetLimitList.size() == 2) {
+
+                // offset, limit指定
+                return new TargetDirectoryParams(targetPath.toString(), new Integer(offsetLimitList.get(0)).intValue(),  (new Integer(offsetLimitList.get(1)).intValue() -  new Integer(offsetLimitList.get(0)).intValue()));
+            }
+
+            return new TargetDirectoryParams(pathCharacter);
+        } else {
+
+            // テーブル名のみの可能性があるので、そのまま返す
+            return new TargetDirectoryParams(pathCharacter);
+        }
+    }
     /**
      * ファイルのフルパスの文字列を作成し返す.<br>
      * tableName = "tbl1"<br>
