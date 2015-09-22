@@ -80,7 +80,6 @@ public class DatabaseClient {
                     }
                 }
 
-                System.out.println("tableName=" +tableName);
                 // テーブル名指定がDBに存在するテーブル名か確認
                 int tableType = 0; // 0=存在しない、1=テーブル、2=BindQueryFolder
                 if (da.exsistTable(tableName)) {
@@ -203,6 +202,7 @@ public class DatabaseClient {
                     if (tmpiNodeInfomation == null) {
                         return null;
                     } else {
+
                         // テンポラリのiNodeが存在する
                         return DbmfsUtil.createFileInfoTemplate(0);
                     }

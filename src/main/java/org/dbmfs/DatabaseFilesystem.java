@@ -128,7 +128,6 @@ public class DatabaseFilesystem implements Filesystem3, XattrSupport {
         String[] setInfo = new String[11];
 
         try {
-
             if (DbmfsUtil.isTopDirectoryPath(path)) {
 
                 setInfo[1] = new Integer(FuseFtypeConstants.TYPE_DIR | 0777).toString();
@@ -147,8 +146,8 @@ public class DatabaseFilesystem implements Filesystem3, XattrSupport {
 
                 // パスから不要なoffse limit指定を取り除く
                 path = DbmfsUtil.convertRealPath(path.trim());
-
                 String infomationString = dbmfsCore.getInfomation(path);
+
 //   /a       = dir    1  0  0  0  1435098875  0  493    0  24576974580222
 //   /a/1.txt = file  1  0  0  0  1435098888  0  33188  0  24589836752449  -1
 //   /a/2.txt = file  1  0  0  0  1435098890  0  33188  0  24591395798630  -1
@@ -158,7 +157,9 @@ public class DatabaseFilesystem implements Filesystem3, XattrSupport {
 //        0     1 2 3 4 5           6 7     8 9                10
                 if (infomationString == null || infomationString.trim().equals("")) {
                     // データ無し
-                    if (path.trim().indexOf("json") == -1 && DbmfsUtil.countPathSeparator(path.trim()) == 1) {
+
+                    if (path.indexOf("json") == -1 && DbmfsUtil.countPathSeparator(path) == 1 && DbmfsUtil.isTableName(path)) {
+
                         // ディレクトリとして結果を返す
                         setInfo[1] = new Integer(FuseFtypeConstants.TYPE_DIR | 0777).toString();
                         pathInfo = new String[9];
@@ -227,7 +228,6 @@ public class DatabaseFilesystem implements Filesystem3, XattrSupport {
 
             // path指定から取得するテーブル及び取得位置を特定
             // DbmfsUtil.parseLimitOffsetCharacter(); TODO:ここでテーブル名部分とlimit offset指定がある場合はバラす
-            System.out.println("path=" + path);
             TargetDirectoryParams targetDirectoryParams = DbmfsUtil.parseTargetDirectoryPath(path);
 
             Map dirChildMap =  null;

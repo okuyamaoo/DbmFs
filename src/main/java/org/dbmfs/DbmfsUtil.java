@@ -187,11 +187,12 @@ public class DbmfsUtil {
      * @return 変換後文字列
      */
     public static String convertRealPath(String path) {
-        // Topディレクトリ指定はそのまま返却
-        if (path.equals("/")) return path;
+        // Topディレクトリ指定もしくはファイル名が数値のみの場合はそのまま返却
+        if (path.equals("/") || path.matches(".*/[0-9]*$")) return path;
 
         // パスが"/100_"や"/100_200"で終わっている場合
         if (path.matches(".*/[0-9_]*$") || path.matches(".*/[0-9_]*/$")) {
+
             // 最後の/100_を削除
             String[] pathSplit = path.split("/");
             StringBuilder pathBuf = new StringBuilder();
@@ -345,6 +346,20 @@ public class DbmfsUtil {
         return DDLFolder.createDDLFolder((String)((Map)dataMapList.get(0)).get("__DBMFS_TABLE_META_INFOMATION"));
     }
 
+    /**
+     * テーブル名の可能性があるか返す
+     * 数値だけや全角などはテーブルとして認めない.<br>
+     *
+     *
+     */
+    public static boolean isTableName(String targetName) {
+        System.out.println(targetName);
+        if (targetName.matches("[0-9]") == true) {
+            return true;
+        } else {
+            return false;
+        }
+     }
     public static Object deserializeType(String value, String javaTypeName) {
         try {
             if (javaTypeName.equals("java.lang.String")) {
