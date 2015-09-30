@@ -155,6 +155,7 @@ public class DatabaseFilesystem implements Filesystem3, XattrSupport {
 // File : file  1  0  0  0  1435097370  0  33188  0  23071466454130  -1
 // Dir  : dir    1  0  0  0  1435097353  0  493    0  23055035971442
 //        0     1 2 3 4 5           6 7     8 9                10
+System.out.println( DbmfsUtil.isTableName(path));
                 if (infomationString == null || infomationString.trim().equals("")) {
                     // データ無し
 

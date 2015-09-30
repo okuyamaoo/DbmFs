@@ -354,12 +354,13 @@ public class DbmfsUtil {
      */
     public static boolean isTableName(String targetName) {
         System.out.println(targetName);
-        if (targetName.matches("[0-9]") == true) {
-            return true;
-        } else {
+        if (targetName.matches(".*/[0-9]*$") == true) {
             return false;
+        } else {
+            return true;
         }
      }
+
     public static Object deserializeType(String value, String javaTypeName) {
         try {
             if (javaTypeName.equals("java.lang.String")) {
