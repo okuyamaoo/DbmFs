@@ -353,13 +353,42 @@ public class DbmfsUtil {
      *
      */
     public static boolean isTableName(String targetName) {
-        System.out.println(targetName);
+
         if (targetName.matches(".*/[0-9]*$") == true) {
             return false;
         } else {
             return true;
         }
      }
+
+    public static boolean isHiddenFile(String targetPath) {
+        String[] pathList = splitTableNameAndPKeyCharacter(targetPath);
+        if (pathList.length == 1) {
+
+            return false;
+        } else if (pathList.length == 2) {
+
+            if (pathList[1].indexOf(".") == 0) {
+                // 隠しファイル
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public static List<String> buildMountTableNames(String tableNames) {
+        List<String> mountTableList = new ArrayList();
+        String[] tableList = tableNames.split(",");
+
+        for (String str : tableList) {
+            if (!str.trim().equals("")) {
+                mountTableList.add("/" + str.trim().toLowerCase());
+                mountTableList.add("/" + str.trim().toLowerCase() + "/");
+            }
+        }
+        mountTableList.add("/");
+        return mountTableList;
+    }
 
     public static Object deserializeType(String value, String javaTypeName) {
         try {

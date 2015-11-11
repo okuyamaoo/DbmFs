@@ -40,6 +40,7 @@ public class DatabaseFilesystem implements Filesystem3, XattrSupport {
     public static String databaseName = null;
     public static String user = null;
     public static String password = null;
+    public static List<String> mountTableNames = null;
 
     private Map<Object, Map> bufferedSaveData = new HashMap(10);
     private static String bufferedDataBodyKey = "buf";
@@ -50,6 +51,8 @@ public class DatabaseFilesystem implements Filesystem3, XattrSupport {
     private Map openFileStatus = new Hashtable();
 
     private Object[] syncFileAccess = new Object[10000];
+
+
 
 
     DatabaseClient dbmfsCore = null;
@@ -63,7 +66,7 @@ public class DatabaseFilesystem implements Filesystem3, XattrSupport {
     public DatabaseFilesystem(String driverName, String databaseAddress, int databasePort, String databaseName, String user, String password) throws IOException {
     }
 
-    public DatabaseFilesystem(String driverName, String databaseUrl, String user, String password, String readOnly, BindQueryFolder bindQueryFolder) throws IOException {
+    public DatabaseFilesystem(String driverName, String databaseUrl, String user, String password, String readOnly, String mountTables, BindQueryFolder bindQueryFolder) throws IOException {
         log.info("database file system mount start ....");
 
         int files = 0;
@@ -75,6 +78,12 @@ public class DatabaseFilesystem implements Filesystem3, XattrSupport {
         DatabaseFilesystem.user = user;
         DatabaseFilesystem.password = password;
         if (readOnly.equals("1")) readOnlyMount = true;
+
+        if (mountTables != null && !mountTables.trim().equals("")) {
+            // マウント対象のテーブル名が指定されている
+            // テーブル名称のリストを作成
+            mountTableNames = DbmfsUtil.buildMountTableNames(mountTables);
+        }
 
         this.bindQueryFolder = bindQueryFolder;
 
@@ -124,6 +133,7 @@ public class DatabaseFilesystem implements Filesystem3, XattrSupport {
 
    public int getattr(String path, FuseGetattrSetter getattrSetter) throws FuseException {
         log.info("getattr " + path);
+
         String[] pathInfo = null;
         String[] setInfo = new String[11];
 
@@ -155,7 +165,7 @@ public class DatabaseFilesystem implements Filesystem3, XattrSupport {
 // File : file  1  0  0  0  1435097370  0  33188  0  23071466454130  -1
 // Dir  : dir    1  0  0  0  1435097353  0  493    0  23055035971442
 //        0     1 2 3 4 5           6 7     8 9                10
-System.out.println( DbmfsUtil.isTableName(path));
+                // System.out.println( DbmfsUtil.isTableName(path));
                 if (infomationString == null || infomationString.trim().equals("")) {
                     // データ無し
 
@@ -289,6 +299,12 @@ System.out.println( DbmfsUtil.isTableName(path));
         log.info("mknod " + path + " " + mode + " " + rdev);
         if (readOnlyMount) throw new FuseException("Read Only").initErrno(FuseException.EACCES);
 
+        // ファイルパスが"."で始まる隠しファイルは成功した様に振る舞う
+        if (DbmfsUtil.isHiddenFile(path)) {
+            //System.out.println(path + " is hidden file");
+            return 0;
+        }
+
         // ファイルパスから不要なoffset limit指定を取り除く
         path = DbmfsUtil.convertRealPath(path.trim());
 
@@ -414,7 +430,7 @@ System.out.println( DbmfsUtil.isTableName(path));
             // ファイルパスから不要なoffset limit指定を取り除く
             path = DbmfsUtil.convertRealPath(path.trim());
 
-            dbmfsCore.deleteData(path, null);
+            dbmfsCore.deleteData(path);
         } catch (FuseException fe) {
             throw fe;
         } catch (Exception e) {
@@ -499,7 +515,7 @@ System.out.println( DbmfsUtil.isTableName(path));
                 return Errno.EBADE;
             } else {
 
-                if (!dbmfsCore.saveData(path.trim(), new String(writeData, DEFAULT_JSON_ENCODING), null)) {
+                if (!dbmfsCore.saveData(path.trim(), new String(writeData, DEFAULT_JSON_ENCODING))) {
                     return Errno.EBADE;
                 }
             }

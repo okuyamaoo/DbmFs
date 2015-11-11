@@ -14,7 +14,6 @@ import java.sql.PreparedStatement;
 import java.sql.ParameterMetaData;
 import java.io.Serializable;
 import java.lang.reflect.Method;
-
 import com.jolbox.bonecp.BoneCP;
 import com.jolbox.bonecp.BoneCPConfig;
 
@@ -100,12 +99,11 @@ public class DatabaseAccessor {
      */
     public void createTable(DDLFolder folder, String tableName)  throws Exception {
 
-        Connection conn = null;
         try {
-            conn = getDbConnection();
+
             QueryRunner qr = new QueryRunner();
 
-            int createRet = qr.update(conn, folder.getCreateSQL(tableName));
+            int createRet = qr.update(injectConn, folder.getCreateSQL(tableName));
         } catch (SQLException se) {
 
             se.printStackTrace();
@@ -113,10 +111,6 @@ public class DatabaseAccessor {
         } catch(Exception e) {
             e.printStackTrace();
             throw e;
-        } finally {
-            try {
-                if (conn != null) conn.close();
-            }  catch(Exception e2) {}
         }
     }
 
@@ -131,13 +125,12 @@ public class DatabaseAccessor {
         if (tableListCacheFolder.containsKey("tablelist")) return (List<String>)tableListCacheFolder.get("tablelist");
 
         List<String> tableNameList = new ArrayList();
-        Connection conn = null;
+
         try {
             String table = "%";
             String types[] = { "TABLE", "VIEW", "SYSTEM TABLE" };
 
-            conn = getDbConnection();
-            DatabaseMetaData dbmd = conn.getMetaData();
+            DatabaseMetaData dbmd = injectConn.getMetaData();
             ResultSet rs = dbmd.getTables(null, null, table, types);
             while (rs.next()) {
 
@@ -147,15 +140,9 @@ public class DatabaseAccessor {
 
             tableListCacheFolder.put("tablelist", tableNameList);
             rs.close();
-            conn.close();
-            conn = null;
         } catch(Exception e) {
             e.printStackTrace();
             throw e;
-        } finally {
-            try {
-                if (conn != null) conn.close();
-            }  catch(Exception e2) {}
         }
 
         return tableNameList;
@@ -171,13 +158,11 @@ public class DatabaseAccessor {
     public boolean exsistTable(String targetTableName) throws Exception {
         if (tableExsistCacheFolder.containsKey(targetTableName)) return true;
         boolean ret = false;
-        Connection conn = null;
         try {
             String table = "%";
             String types[] = { "TABLE", "VIEW", "SYSTEM TABLE" };
 
-            conn = getDbConnection();
-            DatabaseMetaData dbmd = conn.getMetaData();
+            DatabaseMetaData dbmd = injectConn.getMetaData();
             ResultSet rs = dbmd.getTables(null, null, table, types);
             while (rs.next()) {
 
@@ -191,15 +176,9 @@ public class DatabaseAccessor {
             }
 
             rs.close();
-            conn.close();
-            conn = null;
         } catch(Exception e) {
             e.printStackTrace();
             throw e;
-        } finally {
-            try {
-                if (conn != null) conn.close();
-            }  catch(Exception e2) {}
         }
         return ret;
     }
@@ -214,7 +193,6 @@ public class DatabaseAccessor {
      */
     public boolean exsistData(String targetTableName, String pKeyConcatStr) throws Exception {
         boolean ret = false;
-        Connection conn = null;
         try {
 
             // プライマリーキー取得
@@ -249,29 +227,23 @@ public class DatabaseAccessor {
                 whereSep = " and ";
             }
 
-            conn = getDbConnection();
             ResultSetHandler<?> resultSetHandler = new MapListHandler();
             QueryRunner qr = new QueryRunner();
 
             // クエリ実行
-            List<Map<String, Object>> queryResult = (List<Map<String, Object>>)qr.query(conn, queryBuf.toString(), resultSetHandler, params);
+            System.out.println(queryBuf.toString());
+            System.out.println(params[0]);
+            List<Map<String, Object>> queryResult = (List<Map<String, Object>>)qr.query(injectConn, queryBuf.toString(), resultSetHandler, params);
 
             Map countRet = queryResult.get(0);
             Long count = (Long)countRet.get("cnt");
 
             if (count.longValue() == 1) ret = true;
 
-            conn.close();
-            conn = null;
         } catch(Exception e) {
             e.printStackTrace();
             throw e;
-        } finally {
-            try {
-                if (conn != null) conn.close();
-            }  catch(Exception e2) {}
         }
-
         return ret;
     }
 
@@ -287,7 +259,7 @@ public class DatabaseAccessor {
     public List<Map<String, Object>> getDataList(String targetTableName, String pKeyConcatStr) throws Exception {
 
         List <Map<String, Object>> queryResult = null;
-        Connection conn = null;
+
         try {
 
             // キャッシュ確認
@@ -343,14 +315,12 @@ public class DatabaseAccessor {
                 whereSep = " and ";
             }
 
-
-            conn = getDbConnection();
             ResultSetHandler<?> resultSetHandler = new MapListHandler();
             QueryRunner qr = new QueryRunner();
 
 
             // クエリ実行
-            queryResult = (List<Map<String, Object>>)qr.query(conn, queryBuf.toString(), resultSetHandler, params);
+            queryResult = (List<Map<String, Object>>)qr.query(injectConn, queryBuf.toString(), resultSetHandler, params);
 
             if (queryResult == null || queryResult.size() < 1) return null;
 
@@ -363,15 +333,9 @@ public class DatabaseAccessor {
             }
 
             dataCacheFolder.put(cacheKeyBuf.toString(), queryResult);
-            conn.close();
-            conn = null;
         } catch(Exception e) {
             e.printStackTrace();
             throw e;
-        } finally {
-            try {
-                if (conn != null) conn.close();
-            }  catch(Exception e2) {}
         }
 
         return queryResult;
@@ -389,7 +353,7 @@ public class DatabaseAccessor {
     public List<Map<String, Object>> getDataList(String query, List<String> primaryKeyColumnNames, String pKeyConcatStr) throws Exception {
 
         List <Map<String, Object>> queryResult = null;
-        Connection conn = null;
+
         try {
             // 主キー連結文字列を分解
             String[] keyStrSplit = pKeyConcatStr.split(primaryKeySep);
@@ -418,14 +382,12 @@ public class DatabaseAccessor {
                 whereSep = " and ";
             }
 
-
-            conn = getDbConnection();
             ResultSetHandler<?> resultSetHandler = new MapListHandler();
             QueryRunner qr = new QueryRunner();
 
 
             // クエリ実行
-            queryResult = (List<Map<String, Object>>)qr.query(conn, queryBuf.toString(), resultSetHandler, params);
+            queryResult = (List<Map<String, Object>>)qr.query(injectConn, queryBuf.toString(), resultSetHandler, params);
 
             if (queryResult == null || queryResult.size() < 1) return null;
 
@@ -433,17 +395,10 @@ public class DatabaseAccessor {
                 resultData.put(tableMetaInfoKey, "");
             }
 
-            conn.close();
-            conn = null;
         } catch(Exception e) {
             e.printStackTrace();
             throw e;
-        } finally {
-            try {
-                if (conn != null) conn.close();
-            }  catch(Exception e2) {}
         }
-
         return queryResult;
     }
 
@@ -452,13 +407,11 @@ public class DatabaseAccessor {
     private List<String> getPrimaryKeyColumnNames(String tableName) throws Exception {
         if (pKeyColumnNameCacheFolder.containsKey(tableName)) return (List<String>)pKeyColumnNameCacheFolder.get(tableName);
 
-        Connection conn = null;
         List<String> primaryKeyColumnNames = null;
         try {
             primaryKeyColumnNames = new ArrayList();
 
-            conn = getDbConnection();
-            DatabaseMetaData dbmd = conn.getMetaData();
+            DatabaseMetaData dbmd = injectConn.getMetaData();
 
             // プライマリーキー取得
             ResultSet rs = dbmd.getPrimaryKeys(null, null, tableName);
@@ -470,15 +423,9 @@ public class DatabaseAccessor {
 
             pKeyColumnNameCacheFolder.put(tableName, primaryKeyColumnNames);
             rs.close();
-            conn.close();
-            conn = null;
         } catch(Exception e) {
             e.printStackTrace();
             throw e;
-        } finally {
-            try {
-                if (conn != null) conn.close();
-            }  catch(Exception e2) {}
         }
         return primaryKeyColumnNames;
     }
@@ -506,20 +453,18 @@ public class DatabaseAccessor {
 
 
     private  Map<String, Map<String, Object>> getAllColumnMeta(String tableName) throws Exception {
-
-        Connection conn = null;
         Map<String, Map<String, Object>> allColumnMeta = null;
         try {
             if (allColumnMetaCacheFolder.containsKey(tableName)) return (Map<String, Map<String, Object>>)allColumnMetaCacheFolder.get(tableName);
 
             allColumnMeta = new LinkedHashMap();
 
-            conn = getDbConnection();
-            DatabaseMetaData dbmd = conn.getMetaData();
+            DatabaseMetaData dbmd = injectConn.getMetaData();
 
             // 全カラム取得
             ResultSet rs = dbmd.getColumns(null, null, tableName, "%");
             while (rs.next()) {
+
                 Map<String, Object> columMeta = new LinkedHashMap();
                 columMeta.put("name", rs.getString("COLUMN_NAME"));
                 columMeta.put("type", rs.getInt("DATA_TYPE"));
@@ -529,7 +474,6 @@ public class DatabaseAccessor {
                 columMeta.put("seq_type", rs.getString("IS_AUTOINCREMENT"));
                 columMeta.put("javaTypeName", getJavaTypeName(rs.getString("TYPE_NAME")));
                 allColumnMeta.put((String)columMeta.get("name"), columMeta);
-
             }
 
 
@@ -548,15 +492,9 @@ public class DatabaseAccessor {
             allColumnMetaCacheFolder.put(tableName, allColumnMeta);
 
             rs.close();
-            conn.close();
-            conn = null;
         } catch(Exception e) {
             e.printStackTrace();
             throw e;
-        } finally {
-            try {
-                if (conn != null) conn.close();
-            }  catch(Exception e2) {}
         }
         return allColumnMeta;
     }
@@ -570,17 +508,13 @@ public class DatabaseAccessor {
      */
     public List<String> getRecordKeyList(String tableName, int offset, int limit) throws Exception {
         List<String> resultList = new ArrayList();
-        Connection conn = null;
+
         try {
 
             // プライマリーキー取得
             List<String> primaryKeyColumnNames = getPrimaryKeyColumnNames(tableName);
             // プライマリーキーが存在しないテーブルは扱えない
             if (primaryKeyColumnNames.size() == 0) return resultList;
-
-            // Connection取得
-            conn = getDbConnection();
-
 
             // プライマリーキーのみをselect句に指定したクエリにてデータ取得
             // TODO:このままだと大量レコードに対応出来ない
@@ -591,7 +525,7 @@ public class DatabaseAccessor {
             QueryRunner qr = new QueryRunner();
 
             // クエリ実行
-            List<Map<String, Object>> queryResult = (List<Map<String, Object>>)qr.query(conn, query, resultSetHandler);
+            List<Map<String, Object>> queryResult = (List<Map<String, Object>>)qr.query(injectConn, query, resultSetHandler);
 
             // リザルトにテーブルのメタ情報を埋め込む為に取得
             Map<String, Map<String, Object>> allColumnMeta = getAllColumnMeta(tableName, true);
@@ -618,16 +552,9 @@ public class DatabaseAccessor {
                 dataCacheFolder.put(tableName + tableNameSep + queryDataStrBuf.toString(), cachePutList);
                 resultList.add(queryDataStrBuf.toString());
             }
-
-            conn.close();
-            conn = null;
         } catch(Exception e) {
             e.printStackTrace();
             throw e;
-        } finally {
-            try {
-                if (conn != null) conn.close();
-            }  catch(Exception e2) {}
         }
         return resultList;
     }
@@ -642,11 +569,7 @@ public class DatabaseAccessor {
      */
     public List<String> getRecordKeyList(String query, List<String> primaryKeyColumnNames, int offset, int limit) throws Exception {
         List<String> resultList = new ArrayList();
-        Connection conn = null;
         try {
-
-            // Connection取得
-            conn = getDbConnection();
 
             ResultSetHandler<?> resultSetHandler = new MapListHandler();
             QueryRunner qr = new QueryRunner();
@@ -654,7 +577,7 @@ public class DatabaseAccessor {
             // クエリに対してlimit offset を付加
             String executeQuery = createAllColumnQuery("(" + query + ")", offset, limit);
             // クエリ実行
-            List<Map<String, Object>> queryResult = (List<Map<String, Object>>)qr.query(conn, query, resultSetHandler);
+            List<Map<String, Object>> queryResult = (List<Map<String, Object>>)qr.query(injectConn, query, resultSetHandler);
 
 
             // クエリ結果から主キー値を連結した文字列を作り出す
@@ -679,15 +602,9 @@ public class DatabaseAccessor {
                 resultList.add(queryDataStrBuf.toString());
             }
 
-            conn.close();
-            conn = null;
         } catch(Exception e) {
             e.printStackTrace();
             throw e;
-        } finally {
-            try {
-                if (conn != null) conn.close();
-            }  catch(Exception e2) {}
         }
         return resultList;
     }
@@ -712,7 +629,6 @@ public class DatabaseAccessor {
     }
 
     public boolean insertData(String tableName, Map<String, Object> dataObject) throws Exception {
-        Connection conn = null;
 
         try {
             Map<String, Map<String, Object>> allColumnMeta = getAllColumnMeta(tableName, false);
@@ -756,12 +672,9 @@ public class DatabaseAccessor {
             valuesBuf.append(" ) ");
             queryBuf.append(valuesBuf.toString());
 
-            // Connection取得
-            conn = getDbConnection();
-
             QueryRunner qr = new QueryRunner();
 
-            int insertCount = qr.update(conn, queryBuf.toString(), queryParams.toArray(new Object[0]));
+            int insertCount = qr.update(injectConn, queryBuf.toString(), queryParams.toArray(new Object[0]));
         } catch (SQLException se) {
 
             se.printStackTrace();
@@ -769,10 +682,6 @@ public class DatabaseAccessor {
         } catch(Exception e) {
             e.printStackTrace();
             throw e;
-        } finally {
-            try {
-                if (conn != null) conn.close();
-            }  catch(Exception e2) {}
         }
         return true;
     }
@@ -783,7 +692,6 @@ public class DatabaseAccessor {
      *
      */
     public boolean updateData(String tableName, Map<String, Object> dataObject) throws Exception {
-        Connection conn = null;
 
         try {
             // テーブル名から主キー取得
@@ -859,30 +767,20 @@ public class DatabaseAccessor {
             // パラメータ結合
             setParams.addAll(whereParams);
 
-            // Connection取得
-            conn = getDbConnection(false);
-
             QueryRunner qr = new QueryRunner();
-            int updateCount = qr.update(conn, setBuf.toString(), setParams.toArray(new Object[0]));
+            int updateCount = qr.update(injectConn, setBuf.toString(), setParams.toArray(new Object[0]));
 
             if (updateCount != 1) {
-                conn.rollback();
                 return false;
             } else {
-                conn.commit();
                 removeDataCache(tableName, pKeyObjectMap);
                 return true;
             }
         } catch(Exception e) {
             e.printStackTrace();
             throw e;
-        } finally {
-            try {
-                if (conn != null) conn.close();
-            }  catch(Exception e2) {}
         }
     }
-
 
 
     /**
@@ -890,49 +788,42 @@ public class DatabaseAccessor {
      *
      */
     public boolean deleteData(String tableName, String pKeyConcatStr) throws Exception {
-      boolean ret = false;
-      Connection conn = null;
-      try {
+        boolean ret = false;
+        try {
+            // プライマリーキー取得
+            List<String> primaryKeyColumnNames = getPrimaryKeyColumnNames(tableName);
 
-          // プライマリーキー取得
-          List<String> primaryKeyColumnNames = getPrimaryKeyColumnNames(tableName);
+            if (primaryKeyColumnNames == null || primaryKeyColumnNames.size() == 0) return false;
 
-          if (primaryKeyColumnNames == null || primaryKeyColumnNames.size() == 0) return false;
+            // 主キー連結文字列を分解
+            String[] keyStrSplit = pKeyConcatStr.split(primaryKeySep);
 
-          // 主キー連結文字列を分解
-          String[] keyStrSplit = pKeyConcatStr.split(primaryKeySep);
+            if (keyStrSplit.length != primaryKeyColumnNames.size()) return false;
 
-          if (keyStrSplit.length != primaryKeyColumnNames.size()) return false;
+            // クエリ組み立て
+            StringBuilder queryBuf = new StringBuilder();
+            queryBuf.append("delete from ");
+            queryBuf.append(tableName);
+            queryBuf.append(" where ");
 
-          // クエリ組み立て
-          StringBuilder queryBuf = new StringBuilder();
-          queryBuf.append("delete from ");
-          queryBuf.append(tableName);
-          queryBuf.append(" where ");
+            // クエリパラメータ(主キー)作成
+            Object[] params = new Object[primaryKeyColumnNames.size()];
 
-          // クエリパラメータ(主キー)作成
-          Object[] params = new Object[primaryKeyColumnNames.size()];
+            String whereSep = "";
+            for (int idx = 0; idx < primaryKeyColumnNames.size(); idx++) {
+                params[idx] = keyStrSplit[idx];
+                queryBuf.append(whereSep);
+                queryBuf.append(primaryKeyColumnNames.get(idx));
+                queryBuf.append(" = ? ");
+                whereSep = " and ";
+            }
 
-          String whereSep = "";
-          for (int idx = 0; idx < primaryKeyColumnNames.size(); idx++) {
-              params[idx] = keyStrSplit[idx];
-              queryBuf.append(whereSep);
-              queryBuf.append(primaryKeyColumnNames.get(idx));
-              queryBuf.append(" = ? ");
-              whereSep = " and ";
-          }
-
-            // Connection取得
-            conn = getDbConnection(false);
             QueryRunner qr = new QueryRunner();
-            int updateCount = qr.update(conn, queryBuf.toString(), params);
+            int updateCount = qr.update(injectConn, queryBuf.toString(), params);
 
             if (updateCount != 1) {
-                conn.rollback();
                 return false;
             } else {
-                conn.commit();
-
                 // キャッシュよりデータ削除
                 removeDataCache(tableName, pKeyConcatStr);
                 return true;
@@ -940,10 +831,6 @@ public class DatabaseAccessor {
         } catch(Exception e) {
             e.printStackTrace();
             throw e;
-        } finally {
-            try {
-                if (conn != null) conn.close();
-            }  catch(Exception e2) {}
         }
     }
 
@@ -1019,25 +906,18 @@ public class DatabaseAccessor {
         dataCacheFolder.remove(cacheKeyBuf.toString());
     }
 
-    public Connection getDbConnection() throws Exception {
-        return getDbConnection(true);
-    }
-
-    public Connection getDbConnection(boolean autoCommit) throws Exception {
-
-
-        Connection conn = null;
-
-        if (injectConn == null) {
-            conn = connectionPool.getConnection();
-            conn.setAutoCommit(autoCommit);
-        } else {
-
-            conn = injectConn;
-        }
+    public static Connection getOriginalConnection() throws Exception {
+        Connection conn = connectionPool.getConnection();
+        conn.setAutoCommit(false);
         return conn;
     }
 
+    public static void returnOriginalConnection(Connection conn) throws Exception {
+        if (conn != null) {
+            conn.setAutoCommit(true);
+            conn.close();
+        }
+    }
 
     protected String serializeMetaInfomation(Map<String, Map<String, Object>> allColumnMeta) {
         StringBuilder strBuf = new StringBuilder();

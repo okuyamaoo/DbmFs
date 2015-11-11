@@ -47,7 +47,7 @@ public class DbmFsMain {
         try {
             Runtime.getRuntime().addShutdownHook(new ShutdownProccess());
 
-            DatabaseFilesystem dbfs = new DatabaseFilesystem(dbmfsParams.get("dbdriver"), dbmfsParams.get("dburl"), dbmfsParams.get("dbuser"), dbmfsParams.get("dbpass"), dbmfsParams.get("readonly"), bindQueryFolder);
+            DatabaseFilesystem dbfs = new DatabaseFilesystem(dbmfsParams.get("dbdriver"), dbmfsParams.get("dburl"), dbmfsParams.get("dbuser"), dbmfsParams.get("dbpass"), dbmfsParams.get("readonly"), dbmfsParams.get("mttables"), bindQueryFolder);
             FuseMount.mount(fuseParams.toArray(new String[0]), dbfs, log);
         } catch (Exception e) {
            e.printStackTrace();
@@ -87,6 +87,12 @@ public class DbmFsMain {
             if (args[idx].indexOf("-dbpass") == 0) {
               idx++;
               dbmfsParams.put("dbpass", args[idx]);
+              continue;
+            }
+
+            if (args[idx].indexOf("-mttables") == 0) {
+              idx++;
+              dbmfsParams.put("mttables", args[idx]);
               continue;
             }
 
