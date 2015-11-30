@@ -231,8 +231,8 @@ public class DatabaseAccessor {
             QueryRunner qr = new QueryRunner();
 
             // クエリ実行
-            System.out.println(queryBuf.toString());
-            System.out.println(params[0]);
+            //System.out.println(queryBuf.toString());
+            //System.out.println(params[0]);
             List<Map<String, Object>> queryResult = (List<Map<String, Object>>)qr.query(injectConn, queryBuf.toString(), resultSetHandler, params);
 
             Map countRet = queryResult.get(0);
