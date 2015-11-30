@@ -37,8 +37,7 @@ public class DbmFsMain {
         BindQueryFolder bindQueryFolder = new BindQueryFolder();
         try {
 
-            compileBootArgument(args, dbmfsParams, fuseParams, bindQueryFolder);
-            if (dbmfsParams.size() != 5) throw new Exception();
+            if(!compileBootArgument(args, dbmfsParams, fuseParams, bindQueryFolder)) throw new Exception();
         } catch (Exception e) {
             printBootMessageError();
             System.exit(1);
@@ -60,11 +59,12 @@ public class DbmFsMain {
      * TODO 簡易
      *
      */
-    private static void compileBootArgument(String[] args, Map<String, String> dbmfsParams, List<String> fuseParams, BindQueryFolder bindQueryFolder) {
+    private static boolean compileBootArgument(String[] args, Map<String, String> dbmfsParams, List<String> fuseParams, BindQueryFolder bindQueryFolder) {
         dbmfsParams.put("dbpass", ""); // パスワードは省略有り
         dbmfsParams.put("dbdriver", "com.mysql.jdbc.Driver"); // デフォルトドライバーはMySQL
         dbmfsParams.put("readonly", "0");
 
+        int coreBootParameterCount = 0;
         for (int idx = 0; idx < args.length; idx++) {
             if (args[idx].indexOf("-dbdriver") == 0) {
                 idx++;
@@ -75,12 +75,14 @@ public class DbmFsMain {
             if (args[idx].indexOf("-dburl") == 0) {
                 idx++;
                 dbmfsParams.put("dburl", args[idx]);
+                coreBootParameterCount++;
                 continue;
             }
 
             if (args[idx].indexOf("-dbuser") == 0) {
                 idx++;
                 dbmfsParams.put("dbuser", args[idx]);
+                coreBootParameterCount++;
                 continue;
             }
 
@@ -98,7 +100,7 @@ public class DbmFsMain {
 
             // BindQueryを設定
             // 指定フォーマットは
-            // フォルダ名 + @ + SQL文字列
+            // フォルダ名 + / + SQL文字列 + / + 一意な値になるカラムの名前(擬似主キー)
             if (args[idx].indexOf("-viewdir") == 0) {
               idx++;
               String[] bindQueryInfo = args[idx].split("/");
@@ -115,6 +117,9 @@ public class DbmFsMain {
 
             fuseParams.add(args[idx]);
         }
+        // 必須のパラメータ数が全て設定されているか確認
+        if (coreBootParameterCount != 2) return false;
+        return true;
     }
 
 
@@ -132,6 +137,14 @@ public class DbmFsMain {
         System.out.println("                org.dbmfs.DbmFs -dburl jdbc:mysql://localhost/test -dbuser root -dbpass *********");
         System.out.println("                                   or                                          ");
         System.out.println("                org.dbmfs.DbmFs -dbdriver org.postgresql.Driver -dburl jdbc:postgresql://localhost/test -dbuser postgres");
-
+        System.out.println("");
+        System.out.println("                options");
+        System.out.println("                  -dburl    JDBC接続URL      JDBCでの接続記述をデータベース名まで含めて記述 ※必須パラメータ");
+        System.out.println("                  -dbuser   DBユーザ          DB接続ユーザ ※必須パラメータ");
+        System.out.println("                  -dbpass   DBパスワード       DB接続ユーザのパスワード(省略時はパスワード無しで接続を行う)");
+        System.out.println("                  -dbdriver JDBCドライバ       MySQL以外に接続する場合はJDBCドライバのクラスパスを指定(省略時はMySQLのJDBC名が利用される)");
+        System.out.println("                  -readonly true [or] false   全てのテーブルを読み込み専用でマウント。更新を行うとファイルシステムからエラーを返す");
+        System.out.println("                  -viewdir  マウントテーブル名/SELECTクエリ/データを一意にするカラム名 　独自のSELECT句をテーブルとしてマウントする。");
+        System.out.println("                            指定値は'/'をセパレータにして先頭からマウントするフォルダ名/クエリ/作成されるデータを一意に出来るカラム名。データの更新は不可");
     }
 }
