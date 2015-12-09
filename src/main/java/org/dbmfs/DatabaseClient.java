@@ -17,6 +17,8 @@ public class DatabaseClient {
 
     private CacheFolder iNodeTmpFolder = new CacheFolder(100000, 1000L*3600*8);
 
+    private CacheFolder tmpDirFolder = new CacheFolder(1000, 5000L);
+
     private BindQueryFolder bindQueryFolder = null;
 
 
@@ -299,7 +301,11 @@ public class DatabaseClient {
         return -1;
     }
 
-
+    /**
+     * データ新規保存
+     *
+     *
+     */
     public boolean saveData(String key, String jsonBody) throws Exception {
         return modifyData(key, jsonBody, 1);
     }
@@ -356,7 +362,9 @@ public class DatabaseClient {
                         DDLFolder ddlFolder = DbmfsUtil.jsonDeserializeDDLObject(jsonBody);
 
                         // テーブル自動作成
+                        removeTmpDir(splitPath[0]);
                         da.createTable(ddlFolder, splitPath[0]);
+
                     }
 
                     Map<String, Map<String, Object>> meta =  da.getAllColumnMeta(splitPath[0], true);
@@ -405,6 +413,16 @@ public class DatabaseClient {
         return true;
     }
 
+    /**
+     * mkdir用に一時的にディレクトリのダミーデータを作成する
+     */
+    public boolean createTmpDir(String key) {
+        System.out.println("createTmpDir=" + key);
+        if (tmpDirFolder.containsKey(key)) return false;
+
+        tmpDirFolder.put(key, "");
+        return true;
+    }
 
     /**
      * mknode用に一時的に作成したiNodeのダミーデータを返却する
@@ -415,6 +433,14 @@ public class DatabaseClient {
     }
 
 
+    /**
+     * mkdirにて一時的に作成したディレクトリの存在を確認
+     */
+    public boolean exsistTmpDir(String key) {
+        System.out.println("exsistTmpDir=" + key);
+        return tmpDirFolder.containsKey(key);
+
+    }
 
     /**
      * mknode用に一時的に作成したiNodeのダミーデータを削除する
@@ -424,4 +450,12 @@ public class DatabaseClient {
         iNodeTmpFolder.remove(key);
     }
 
+
+    /**
+     * mkdirにて一時的に作成したディレクトリ情報を削除
+     */
+    public void removeTmpDir(String key) {
+        System.out.println("removeTmpDir=" + key);
+        tmpDirFolder.remove(key);
+    }
 }

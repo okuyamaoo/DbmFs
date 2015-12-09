@@ -149,7 +149,6 @@ public class DatabaseFilesystem implements Filesystem3, XattrSupport {
                 pathInfo[5] = "0";
                 pathInfo[6] = "0";
                 pathInfo[8] = "0";
-
             } else {
 
                 // 表示最大ファイル数を超えた場合のディレクトリの指定か確認
@@ -171,16 +170,21 @@ public class DatabaseFilesystem implements Filesystem3, XattrSupport {
 
                     if (path.indexOf("json") == -1 && DbmfsUtil.countPathSeparator(path) == 1 && DbmfsUtil.isTableName(path)) {
 
-                        // ディレクトリとして結果を返す
-                        setInfo[1] = new Integer(FuseFtypeConstants.TYPE_DIR | 0777).toString();
-                        pathInfo = new String[9];
-                        pathInfo[1] = "0";
-                        pathInfo[2] = "0";
-                        pathInfo[3] = "0";
-                        pathInfo[4] = "0";
-                        pathInfo[5] = "0";
-                        pathInfo[6] = "0";
-                        pathInfo[8] = "0";
+                        if (dbmfsCore.exsistTmpDir(path)) {
+
+                            // ディレクトリとして結果を返す(mkdirでテーブルを作成された状態)
+                            setInfo[1] = new Integer(FuseFtypeConstants.TYPE_DIR | 0777).toString();
+                            pathInfo = new String[9];
+                            pathInfo[1] = "0";
+                            pathInfo[2] = "0";
+                            pathInfo[3] = "0";
+                            pathInfo[4] = "0";
+                            pathInfo[5] = "0";
+                            pathInfo[6] = "0";
+                            pathInfo[8] = "0";
+                        } else {
+                            return Errno.ENOENT;
+                        }
                     } else {
                         return Errno.ENOENT;
                     }
@@ -291,6 +295,7 @@ public class DatabaseFilesystem implements Filesystem3, XattrSupport {
     public int mkdir(String path, int mode) throws FuseException {
         log.info("mkdir " + path + " " + mode);
         if (readOnlyMount) throw new FuseException("Read Only").initErrno(FuseException.EACCES);
+        dbmfsCore.createTmpDir(path.trim());
         return 0;
         //throw new FuseException("Read Only").initErrno(FuseException.EACCES);
     }
