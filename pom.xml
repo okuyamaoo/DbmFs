@@ -12,10 +12,6 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-compiler-plugin</artifactId>
-        <configuration>
-          <source>1.7</source>
-          <target>1.7</target>
-        </configuration>
 	  </plugin>
 	  <plugin>
 		<groupId>org.apache.maven.plugins</groupId>
@@ -80,6 +76,10 @@
 		<artifactId>bonecp</artifactId>
 		<version>0.8.0.RELEASE</version>
 	</dependency>
-
+	<dependency>
+		<groupId>org.slf4j</groupId>
+		<artifactId>slf4j-simple</artifactId>
+		<version>1.7.13</version>
+	</dependency>
   </dependencies>
 </project>
